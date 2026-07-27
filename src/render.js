@@ -7,10 +7,9 @@
 //    profondita': l'ordine di disegno *e'* la profondita'. Percio' ogni elenco
 //    (palazzi, alberi, auto, ostacoli) viene raccolto, ordinato per z
 //    decrescente e solo allora passato al pennello.
-// 2. **Le figure si disegnano in metri.** `conFigura` piazza l'origine ai
-//    piedi del personaggio e ribalta l'asse y, cosi' dentro a quel blocco si
-//    ragiona in metri con l'alto verso l'alto, e la stessa funzione serve per
-//    l'omino bianco, per i maranza e per chi sta sul monopattino.
+// 2. **Le forme prospettiche stanno in `pennello.js`**, le persone e i
+//    monopattini in `figure.js`, i monumenti in `monumenti.js`. Qui restano la
+//    scena e l'interfaccia.
 // 3. **Ogni volume e' una scatola di tre facce**: il fianco lungo la strada,
 //    la testa che guarda la telecamera e il tetto. Bastano a palazzi, auto,
 //    tram e cassonetti, e sono la ragione per cui la scena ha spessore invece
@@ -30,19 +29,36 @@ import { abbassato } from './corridore.js';
 import { minaccia, DISTACCO_INIZIALE } from './inseguitori.js';
 import { areaPausa } from './pausa.js';
 import {
+  fascia,
+  parete,
+  testa,
+  scatola,
+  linea,
+  chioma,
+  riquadroTondo,
+  schiarisci,
+  scurisci,
+} from './pennello.js';
+import {
+  conFigura,
+  disegnaFigura,
+  disegnaMaranzaDiFronte,
+  disegnaMonopattinoDiLato,
+  disegnaMonopattinoDiSpalle,
+  postiDelBranco,
+  CAPPELLI,
+} from './figure.js';
+import { disegnaFacciataMonumento, disegnaFiancoMonumento, disegnaArco } from './monumenti.js';
+import {
   creaCitta,
   zRelativo,
   BORDO_STRADA,
   BORDO_MARCIAPIEDE,
   FILO_PALAZZI,
+  FILO_MONUMENTI,
   ROTAIE,
   LATO_TRAM,
   LATO_SOSTA,
-  PALAZZO,
-  DUOMO,
-  GALLERIA,
-  VELASCA,
-  BOSCO,
 } from './citta.js';
 import {
   scattoAttivo,
@@ -79,8 +95,8 @@ const COLORI = {
   marciapiedeChiaro: '#b3ada4',
   cordolo: '#8b857d',
   // Le facciate di un viale milanese: ocra, beige, un grigio, un mattone
-  // stinto, una crema, un verdino. Se sono troppo simili fra loro la fila di
-  // palazzi si legge come un muro solo.
+  // stinto, una crema, un verdino. Se sono troppo simili la fila di palazzi si
+  // legge come un muro solo.
   palazzi: ['#c0ab92', '#a08972', '#d0c4af', '#8e8c89', '#ab8672', '#98a297'],
   testaPalazzo: 'rgba(92,86,78,0.92)',
   tetto: '#7a7269',
@@ -100,7 +116,7 @@ const COLORI = {
   ominoOmbra: '#c2c9d3',
   maranza: '#24262c',
   maranzaLuce: '#474c56',
-  coltello: '#ccd3dc',
+  borsello: '#8a8f98',
   buca: '#26282d',
   bucaBordo: '#3c4046',
   bucaFondo: '#1a1c20',
@@ -120,10 +136,15 @@ export function disegnaMondo(ctx, mondo, interfaccia = {}) {
   disegnaProfiloLontano(ctx, vista, mondo.scorrimento);
   disegnaStrada(ctx, vista, mondo.scorrimento);
   disegnaCitta(ctx, vista, mondo.scorrimento);
-  disegnaLineaAerea(ctx, vista, mondo.scorrimento);
+  disegnaLineaAerea(ctx, vista);
   disegnaPercorso(ctx, mondo);
-  disegnaCorridore(ctx, mondo);
-  disegnaInseguitori(ctx, mondo);
+  // Sulla schermata iniziale la strada e' solo lo sfondo del ritratto del
+  // branco: l'omino e gli inseguitori li' non ci vanno, o si ritroverebbero in
+  // mezzo al capannello senza motivo.
+  if (mondo.stato !== 'attesa') {
+    disegnaCorridore(ctx, mondo);
+    disegnaInseguitori(ctx, mondo);
+  }
   disegnaVignetta(ctx, mondo);
 
   // Il pannello serve solo mentre si gioca: sulle schermate i numeri ci sono
@@ -137,99 +158,6 @@ export function disegnaMondo(ctx, mondo, interfaccia = {}) {
   if (mondo.stato === 'attesa') disegnaSchermataIniziale(ctx, mondo, interfaccia);
   if (mondo.stato === 'pausa') disegnaSchermataPausa(ctx, mondo, interfaccia);
   if (mondo.stato === 'finita') disegnaSchermataFine(ctx, mondo, interfaccia);
-}
-
-// --- attrezzi comuni -------------------------------------------------------
-
-/** Un quadrilatero orizzontale (a quota `y`) fra due z e due x. E' con questo
- *  che si disegna quasi tutto quello che sta per terra. */
-function fasciaStrada(ctx, vista, xDa, xA, zVicino, zLontano, y = 0) {
-  const a = proietta(vista, xDa, y, zVicino);
-  const b = proietta(vista, xA, y, zVicino);
-  const c = proietta(vista, xA, y, zLontano);
-  const d = proietta(vista, xDa, y, zLontano);
-  ctx.beginPath();
-  ctx.moveTo(a.x, a.y);
-  ctx.lineTo(b.x, b.y);
-  ctx.lineTo(c.x, c.y);
-  ctx.lineTo(d.x, d.y);
-  ctx.closePath();
-  ctx.fill();
-}
-
-/** Un quadrilatero verticale lungo la strada: il fianco di un palazzo, di
- *  un'auto, di un tram. */
-function parete(ctx, vista, x, yBasso, yAlto, zVicino, zLontano) {
-  const a = proietta(vista, x, yBasso, zVicino);
-  const b = proietta(vista, x, yAlto, zVicino);
-  const c = proietta(vista, x, yAlto, zLontano);
-  const d = proietta(vista, x, yBasso, zLontano);
-  ctx.beginPath();
-  ctx.moveTo(a.x, a.y);
-  ctx.lineTo(b.x, b.y);
-  ctx.lineTo(c.x, c.y);
-  ctx.lineTo(d.x, d.y);
-  ctx.closePath();
-  ctx.fill();
-}
-
-/** Un quadrilatero verticale di traverso: la testa di un volume, quella che
- *  guarda la telecamera. Si vede solo finche' il volume e' davanti. */
-function testa(ctx, vista, z, xDa, xA, yBasso, yAlto) {
-  const a = proietta(vista, xDa, yBasso, z);
-  const b = proietta(vista, xDa, yAlto, z);
-  const c = proietta(vista, xA, yAlto, z);
-  const d = proietta(vista, xA, yBasso, z);
-  ctx.beginPath();
-  ctx.moveTo(a.x, a.y);
-  ctx.lineTo(b.x, b.y);
-  ctx.lineTo(c.x, c.y);
-  ctx.lineTo(d.x, d.y);
-  ctx.closePath();
-  ctx.fill();
-}
-
-/** Una scatola vista di tre quarti: fianco, testa e tetto. */
-function scatola(ctx, vista, opzioni) {
-  const { xDentro, xFuori, zVicino, zLontano, yBasso, yAlto, lato, tetto, fronte } = opzioni;
-  if (zLontano <= CODA_ARREDI) return;
-  const vicino = Math.max(zVicino, CODA_ARREDI);
-
-  ctx.fillStyle = lato;
-  parete(ctx, vista, xDentro, yBasso, yAlto, vicino, zLontano);
-
-  if (tetto) {
-    ctx.fillStyle = tetto;
-    fasciaStrada(ctx, vista, xDentro, xFuori, vicino, zLontano, yAlto);
-  }
-  if (fronte && zVicino > 0.4) {
-    ctx.fillStyle = fronte;
-    testa(ctx, vista, zVicino, xDentro, xFuori, yBasso, yAlto);
-  }
-}
-
-/** Disegna una sagoma data in coordinate (z, y) sul piano verticale x. */
-function sagomaSulMuro(ctx, vista, x, punti, colore) {
-  ctx.fillStyle = colore;
-  ctx.beginPath();
-  punti.forEach((punto, i) => {
-    const p = proietta(vista, x, punto[1], punto[0]);
-    if (i === 0) ctx.moveTo(p.x, p.y);
-    else ctx.lineTo(p.x, p.y);
-  });
-  ctx.closePath();
-  ctx.fill();
-}
-
-function linea(ctx, vista, da, a, colore, spessore) {
-  const p1 = proietta(vista, da[0], da[1], da[2]);
-  const p2 = proietta(vista, a[0], a[1], a[2]);
-  ctx.strokeStyle = colore;
-  ctx.lineWidth = Math.max(0.8, spessore * Math.min(p1.scala, p2.scala));
-  ctx.beginPath();
-  ctx.moveTo(p1.x, p1.y);
-  ctx.lineTo(p2.x, p2.y);
-  ctx.stroke();
 }
 
 // --- cielo -----------------------------------------------------------------
@@ -252,8 +180,6 @@ function disegnaCielo(ctx, vista, scorrimento) {
   ctx.fillRect(0, vista.orizzonte - vista.altezza * 0.16, vista.larghezza, vista.altezza * 0.16 + 6);
 }
 
-/** Quattro nuvole basse che scorrono lentissime. Sono in coordinate schermo:
- *  a quella distanza la prospettiva non aggiungerebbe niente. */
 function disegnaNuvole(ctx, vista, scorrimento) {
   const nuvole = [
     [0.12, 0.1, 1.2],
@@ -274,8 +200,7 @@ function disegnaNuvole(ctx, vista, scorrimento) {
 }
 
 /** Il profilo della citta' all'orizzonte: non e' fatto di palazzi veri, e' una
- *  sagoma che scorre lentissima. Serve a non lasciare vuoto il punto di fuga e
- *  a far capire che si sta correndo dentro una citta' grande. */
+ *  sagoma che scorre lentissima. Serve a non lasciare vuoto il punto di fuga. */
 function disegnaProfiloLontano(ctx, vista, scorrimento) {
   const base = vista.orizzonte + 1;
   const unita = vista.larghezza / 16;
@@ -298,64 +223,57 @@ function disegnaStrada(ctx, vista, scorrimento) {
   const zVicino = -DISTANZA_CAMERA + 0.45;
   const zLontano = DISTANZA_VISIBILE;
 
-  // Terra: riempie tutto quel che sta sotto l'orizzonte, cosi' non restano
-  // buchi di cielo fra un palazzo e l'altro.
   ctx.fillStyle = COLORI.marciapiede;
   ctx.fillRect(0, vista.orizzonte, vista.larghezza, vista.altezza - vista.orizzonte);
 
-  // Marciapiedi, un filo piu' chiari verso il muro.
   for (const lato of [-1, 1]) {
     ctx.fillStyle = COLORI.marciapiedeChiaro;
-    fasciaStrada(ctx, vista, lato * BORDO_MARCIAPIEDE, lato * FILO_PALAZZI, zVicino, zLontano, 0.16);
+    fascia(ctx, vista, lato * BORDO_MARCIAPIEDE, lato * FILO_PALAZZI, zVicino, zLontano, 0.16);
   }
 
   disegnaSedeTranviaria(ctx, vista, zVicino, zLontano);
   disegnaFasciaSosta(ctx, vista, zVicino, zLontano);
 
-  // Asfalto, con una sfumatura che schiarisce verso l'orizzonte.
   const asfalto = ctx.createLinearGradient(0, vista.orizzonte, 0, vista.altezza);
   asfalto.addColorStop(0, COLORI.asfaltoLontano);
   asfalto.addColorStop(0.35, COLORI.asfalto);
   asfalto.addColorStop(1, '#3f4248');
   ctx.fillStyle = asfalto;
-  fasciaStrada(ctx, vista, -SEMI_STRADA, SEMI_STRADA, zVicino, zLontano);
+  fascia(ctx, vista, -SEMI_STRADA, SEMI_STRADA, zVicino, zLontano);
 
   disegnaRattoppi(ctx, vista, scorrimento);
   disegnaTombini(ctx, vista, scorrimento);
   disegnaStrisce(ctx, vista, scorrimento);
   disegnaAttraversamenti(ctx, vista, scorrimento);
 
-  // Cordoli: la faccia verticale del marciapiede, che regge tutto il resto.
   ctx.fillStyle = COLORI.cordolo;
   for (const lato of [-1, 1]) {
     parete(ctx, vista, lato * BORDO_MARCIAPIEDE, 0, 0.16, zVicino, zLontano);
   }
 }
 
-/** La sede del tram: asfalto piu' chiaro e due rotaie lucide che corrono
- *  lungo tutta la strada. E' il pezzo di Milano che si vede senza doverlo
- *  spiegare. */
+/** La sede del tram: asfalto piu' chiaro e due rotaie lucide che corrono lungo
+ *  tutta la strada. E' il pezzo di Milano che si vede senza spiegarlo. */
 function disegnaSedeTranviaria(ctx, vista, zVicino, zLontano) {
   const segno = LATO_TRAM;
   ctx.fillStyle = COLORI.sede;
-  fasciaStrada(ctx, vista, segno * BORDO_STRADA, segno * BORDO_MARCIAPIEDE, zVicino, zLontano, 0.005);
+  fascia(ctx, vista, segno * BORDO_STRADA, segno * BORDO_MARCIAPIEDE, zVicino, zLontano, 0.005);
 
   for (const distanza of ROTAIE) {
     const x = segno * distanza;
     ctx.fillStyle = '#3a3d43';
-    fasciaStrada(ctx, vista, x - 0.11, x + 0.11, zVicino, zLontano, 0.01);
+    fascia(ctx, vista, x - 0.11, x + 0.11, zVicino, zLontano, 0.01);
     ctx.fillStyle = COLORI.rotaia;
-    fasciaStrada(ctx, vista, x - 0.045, x + 0.045, zVicino, zLontano, 0.02);
+    fascia(ctx, vista, x - 0.045, x + 0.045, zVicino, zLontano, 0.02);
   }
 }
 
 function disegnaFasciaSosta(ctx, vista, zVicino, zLontano) {
   const segno = LATO_SOSTA;
   ctx.fillStyle = COLORI.sosta;
-  fasciaStrada(ctx, vista, segno * BORDO_STRADA, segno * BORDO_MARCIAPIEDE, zVicino, zLontano, 0.005);
-  // la riga blu della sosta a pagamento
+  fascia(ctx, vista, segno * BORDO_STRADA, segno * BORDO_MARCIAPIEDE, zVicino, zLontano, 0.005);
   ctx.fillStyle = 'rgba(82,116,168,0.75)';
-  fasciaStrada(ctx, vista, segno * (BORDO_STRADA + 0.15), segno * (BORDO_STRADA + 0.27), zVicino, zLontano, 0.012);
+  fascia(ctx, vista, segno * (BORDO_STRADA + 0.15), segno * (BORDO_STRADA + 0.27), zVicino, zLontano, 0.012);
 }
 
 /** I rattoppi dell'asfalto. Grigi, mai neri: un rattoppo scuro si legge come
@@ -365,7 +283,7 @@ function disegnaRattoppi(ctx, vista, scorrimento) {
     const z = zRelativo(rattoppo.z, scorrimento);
     if (z > 70 || z < CODA_ARREDI) continue;
     ctx.fillStyle = rattoppo.chiaro ? COLORI.rattoppoChiaro : COLORI.rattoppoScuro;
-    fasciaStrada(
+    fascia(
       ctx,
       vista,
       rattoppo.x - rattoppo.larghezza / 2,
@@ -407,15 +325,14 @@ function disegnaStrisce(ctx, vista, scorrimento) {
       const vicino = Math.max(z, -DISTANZA_CAMERA + 0.5);
       const lontano = z + TRATTO;
       if (lontano < -DISTANZA_CAMERA + 0.5) continue;
-      fasciaStrada(ctx, vista, x - 0.09, x + 0.09, vicino, lontano, 0.01);
+      fascia(ctx, vista, x - 0.09, x + 0.09, vicino, lontano, 0.01);
     }
   }
 
-  // Bordi della carreggiata: righe continue, consumate dal passaggio.
   ctx.fillStyle = COLORI.strisciaConsumata;
   for (const lato of [-1, 1]) {
     const x = lato * (SEMI_STRADA - 0.22);
-    fasciaStrada(ctx, vista, x - 0.07, x + 0.07, -DISTANZA_CAMERA + 0.5, DISTANZA_VISIBILE, 0.01);
+    fascia(ctx, vista, x - 0.07, x + 0.07, -DISTANZA_CAMERA + 0.5, DISTANZA_VISIBILE, 0.01);
   }
 }
 
@@ -427,7 +344,7 @@ function disegnaAttraversamenti(ctx, vista, scorrimento) {
     const z = zRelativo(zStrisce, scorrimento);
     if (z > DISTANZA_VISIBILE || z < CODA_ARREDI - 3) continue;
     for (let x = -SEMI_STRADA + 0.35; x < SEMI_STRADA - 0.3; x += 0.92) {
-      fasciaStrada(ctx, vista, x, x + 0.46, Math.max(z - 1.6, CODA_ARREDI), z + 1.6, 0.011);
+      fascia(ctx, vista, x, x + 0.46, Math.max(z - 1.6, CODA_ARREDI), z + 1.6, 0.011);
     }
   }
 }
@@ -446,7 +363,7 @@ function disegnaCitta(ctx, vista, scorrimento) {
 
   const arco = zRelativo(CITTA.arco.z, scorrimento);
   if (arco < DISTANZA_VISIBILE && arco > CODA_ARREDI - 8) {
-    aggiungi(arco, () => disegnaArco(ctx, vista, arco));
+    aggiungi(arco, () => disegnaArco(ctx, vista, CITTA.arco, arco, BORDO_MARCIAPIEDE));
   }
 
   for (const albero of CITTA.alberi) {
@@ -483,13 +400,19 @@ function disegnaCitta(ctx, vista, scorrimento) {
  *  per intero: serve solo a dare spessore alla facciata di testa. */
 const PROFONDITA_ISOLATO = 18;
 
-/** Un palazzo e' un muro lungo la strada, la sua facciata di testa e un
- *  cornicione. Senza la testa, fra un palazzo e l'altro si vedrebbe
- *  attraverso l'isolato e sembrerebbero muri di cartone spessi zero. */
 function disegnaEdificio(ctx, vista, edificio, z) {
   const zVicino = Math.max(z, CODA_ARREDI);
   const zLontano = z + edificio.profondita;
   if (zLontano <= CODA_ARREDI) return;
+
+  if (edificio.monumento) {
+    const x = edificio.lato * FILO_MONUMENTI;
+    disegnaFiancoMonumento(ctx, vista, edificio, x, zVicino, zLontano);
+    if (z > 0.4) {
+      disegnaFacciataMonumento(ctx, vista, edificio, z, x, edificio.lato * (FILO_MONUMENTI + edificio.larghezza));
+    }
+    return;
+  }
 
   const x = edificio.lato * FILO_PALAZZI;
   const fuori = edificio.lato * (FILO_PALAZZI + PROFONDITA_ISOLATO);
@@ -501,11 +424,6 @@ function disegnaEdificio(ctx, vista, edificio, z) {
     testa(ctx, vista, z, x, fuori, 0, h);
   }
 
-  if (edificio.tipo === DUOMO) return disegnaDuomo(ctx, vista, edificio, x, zVicino, zLontano);
-  if (edificio.tipo === GALLERIA) return disegnaGalleria(ctx, vista, edificio, x, zVicino, zLontano);
-  if (edificio.tipo === VELASCA) return disegnaVelasca(ctx, vista, edificio, x, zVicino, zLontano);
-  if (edificio.tipo === BOSCO) return disegnaBosco(ctx, vista, edificio, x, zVicino, zLontano);
-
   ctx.fillStyle = COLORI.palazzi[edificio.tinta % COLORI.palazzi.length];
   parete(ctx, vista, x, 0, h, zVicino, zLontano);
 
@@ -516,9 +434,10 @@ function disegnaEdificio(ctx, vista, edificio, z) {
   parete(ctx, vista, x, h, h + 0.6, zVicino, zLontano);
 }
 
-/** Le finestre sono riquadri veri, non tratti: da vicino la differenza fra un
- *  palazzo e una parete colorata sta tutta qui. Piu' in la' di settanta metri
- *  si smette di disegnarle, perche' li' non si distinguono comunque. */
+/** Le finestre sono riquadri veri con il loro contorno chiaro, la persiana
+ *  socchiusa e il davanzale: da vicino la differenza fra un palazzo e una
+ *  parete colorata sta tutta qui. Piu' in la' di settanta metri si smette,
+ *  perche' li' non si distinguono comunque. */
 function disegnaPianiEFinestre(ctx, vista, edificio, x, zVicino, zLontano) {
   if (zVicino > 75) return;
   const h = edificio.altezza;
@@ -526,29 +445,60 @@ function disegnaPianiEFinestre(ctx, vista, edificio, x, zVicino, zLontano) {
   const piani = Math.max(1, Math.floor((h - partenza) / 3.1));
   const colonne = Math.max(1, Math.round((zLontano - zVicino) / 3.2));
   const passoZ = (zLontano - zVicino) / colonne;
+  const vicino = zVicino < 38;
 
   for (let p = 0; p < piani; p += 1) {
     const yBasso = partenza + p * 3.1 + 0.9;
-    const yAlto = yBasso + 1.5;
+    const yAlto = yBasso + 1.55;
 
     if (edificio.balconi) {
+      // la soletta e la ringhiera: il balcone a filo di un palazzo milanese
       ctx.fillStyle = COLORI.balcone;
-      parete(ctx, vista, x - edificio.lato * 0.18, yBasso - 0.95, yBasso - 0.72, zVicino, zLontano);
+      parete(ctx, vista, x - edificio.lato * 0.22, yBasso - 0.95, yBasso - 0.78, zVicino, zLontano);
+      if (vicino) {
+        ctx.strokeStyle = 'rgba(70,66,60,0.55)';
+        for (let b = 0; b < colonne * 4; b += 1) {
+          const z = zVicino + ((zLontano - zVicino) * (b + 0.5)) / (colonne * 4);
+          linea(ctx, vista, [x - edificio.lato * 0.2, yBasso - 0.78, z], [x - edificio.lato * 0.2, yBasso - 0.2, z], 'rgba(70,66,60,0.5)', 0.035);
+        }
+        ctx.fillStyle = COLORI.balcone;
+        parete(ctx, vista, x - edificio.lato * 0.22, yBasso - 0.24, yBasso - 0.18, zVicino, zLontano);
+      }
     }
 
     for (let c = 0; c < colonne; c += 1) {
-      // finestre strette e alte: quadrate sembrano oblo', non finestre
       const zDa = zVicino + c * passoZ + passoZ * 0.34;
       const zA = zVicino + c * passoZ + passoZ * 0.66;
+      const dentro = x - edificio.lato * 0.04;
+
+      // contorno chiaro attorno alla finestra
+      if (vicino) {
+        ctx.fillStyle = 'rgba(248,245,238,0.75)';
+        parete(ctx, vista, dentro, yBasso - 0.16, yAlto + 0.16, zDa - 0.16, zA + 0.16);
+      }
       ctx.fillStyle = COLORI.vetrina;
-      parete(ctx, vista, x - edificio.lato * 0.04, yBasso, yAlto, zDa, zA);
+      parete(ctx, vista, x - edificio.lato * 0.06, yBasso, yAlto, zDa, zA);
+
+      if (!vicino) continue;
+      // la persiana tirata su a meta', diversa da finestra a finestra
+      const quanta = ((p * 7 + c * 3 + edificio.tinta) % 4) * 0.22;
+      if (quanta > 0) {
+        ctx.fillStyle = '#8e8f7e';
+        parete(ctx, vista, x - edificio.lato * 0.07, yAlto - 1.55 * quanta, yAlto, zDa, zA);
+      }
+      // il davanzale
+      ctx.fillStyle = 'rgba(238,234,226,0.85)';
+      parete(ctx, vista, x - edificio.lato * 0.1, yBasso - 0.12, yBasso - 0.02, zDa - 0.18, zA + 0.18);
     }
   }
+
+  // marcapiano fra il piano terra e il primo piano, e cornicione in cima
+  ctx.fillStyle = 'rgba(250,246,238,0.5)';
+  parete(ctx, vista, x - edificio.lato * 0.08, partenza + 0.2, partenza + 0.5, zVicino, zLontano);
 }
 
 /** Il piano terra di una via commerciale, negozio per negozio: vetrina scura,
- *  tenda da sole, insegna. E' la fascia che si ha sotto gli occhi correndo,
- *  quindi e' quella che vale la pena disegnare bene.
+ *  tenda da sole, insegna. E' la fascia che si ha sotto gli occhi correndo.
  *
  *  I negozi sono **spezzati**, non una fascia continua lungo tutto l'isolato:
  *  una tenda unica lunga trenta metri diventa un nastro colorato, e nessuna
@@ -557,7 +507,6 @@ function disegnaPianoTerra(ctx, vista, edificio, x, zVicino, zLontano) {
   if (zVicino > 70) return;
   const dentro = x - edificio.lato * 0.05;
 
-  // il fondo continuo delle vetrine, con lo zoccolo scuro
   ctx.fillStyle = COLORI.vetrina;
   parete(ctx, vista, dentro, 0.4, 3.4, zVicino, zLontano);
   ctx.fillStyle = 'rgba(38,42,48,0.85)';
@@ -571,183 +520,19 @@ function disegnaPianoTerra(ctx, vista, edificio, x, zVicino, zLontano) {
     const a = zVicino + (i + 1) * passo - 0.35;
     const tinta = (edificio.insegna + i * 3) % COLORI.tenda.length;
 
-    // il montante fra un negozio e l'altro
     ctx.fillStyle = COLORI.palazzi[edificio.tinta % COLORI.palazzi.length];
     parete(ctx, vista, dentro, 0.4, 3.4, zVicino + i * passo, da);
 
-    // due negozi su tre hanno la tenda fuori
     if ((edificio.insegna + i) % 3 !== 0) {
       const sporgenza = x - edificio.lato * 1.5;
       ctx.fillStyle = COLORI.tenda[tinta];
-      fasciaStrada(ctx, vista, Math.min(dentro, sporgenza), Math.max(dentro, sporgenza), da, a, 3.5);
+      fascia(ctx, vista, Math.min(dentro, sporgenza), Math.max(dentro, sporgenza), da, a, 3.5);
       ctx.fillStyle = 'rgba(0,0,0,0.2)';
       parete(ctx, vista, sporgenza, 3.15, 3.5, da, a);
     }
 
-    // l'insegna sopra la vetrina
     ctx.fillStyle = i % 2 === 0 ? 'rgba(246,244,238,0.9)' : COLORI.tenda[tinta];
     parete(ctx, vista, dentro, 3.65, 4.1, da, a);
-  }
-}
-
-function disegnaDuomo(ctx, vista, edificio, x, zVicino, zLontano) {
-  const h = edificio.altezza;
-  sagomaSulMuro(ctx, vista, x, [[zVicino, 0], [zVicino, h * 0.62], [zLontano, h * 0.62], [zLontano, 0]], '#ded7c5');
-
-  // le guglie: sono loro a rendere riconoscibile il Duomo di profilo
-  const quante = 11;
-  for (let i = 0; i < quante; i += 1) {
-    const z = zVicino + ((zLontano - zVicino) * (i + 0.5)) / quante;
-    const alta = h * (i === Math.floor(quante / 2) ? 1 : 0.76 + 0.16 * Math.sin(i * 1.7));
-    sagomaSulMuro(
-      ctx,
-      vista,
-      x,
-      [[z - 0.85, h * 0.62], [z - 0.35, alta * 0.94], [z, alta], [z + 0.35, alta * 0.94], [z + 0.85, h * 0.62]],
-      i % 2 === 0 ? '#e8e1cf' : '#d5cebc',
-    );
-  }
-
-  // finestroni a sesto acuto
-  for (let i = 0; i < 6; i += 1) {
-    const z = zVicino + ((zLontano - zVicino) * (i + 0.5)) / 6;
-    sagomaSulMuro(
-      ctx,
-      vista,
-      x,
-      [[z - 1, h * 0.08], [z - 1, h * 0.36], [z, h * 0.5], [z + 1, h * 0.36], [z + 1, h * 0.08]],
-      '#a89f8c',
-    );
-  }
-
-  // la Madonnina sulla guglia di mezzo
-  const zMezzo = zVicino + (zLontano - zVicino) / 2;
-  sagomaSulMuro(ctx, vista, x, [[zMezzo - 0.3, h], [zMezzo, h + 2.6], [zMezzo + 0.3, h]], '#e8d99a');
-}
-
-function disegnaGalleria(ctx, vista, edificio, x, zVicino, zLontano) {
-  const h = edificio.altezza;
-  sagomaSulMuro(ctx, vista, x, [[zVicino, 0], [zVicino, h], [zLontano, h], [zLontano, 0]], '#cdc3b1');
-
-  const centro = (zVicino + zLontano) / 2;
-  const raggio = Math.min(6, (zLontano - zVicino) / 2.8);
-  const punti = [[centro - raggio, 0]];
-  for (let i = 0; i <= 10; i += 1) {
-    const angolo = Math.PI * (i / 10);
-    punti.push([centro - raggio * Math.cos(angolo), h * 0.42 + Math.sin(angolo) * raggio * 1.4]);
-  }
-  punti.push([centro + raggio, 0]);
-  sagomaSulMuro(ctx, vista, x, punti, '#6d6a63');
-
-  // la volta di vetro sul tetto, bassa: alta diventerebbe una vela
-  const volta = [];
-  for (let i = 0; i <= 12; i += 1) {
-    const t = i / 12;
-    volta.push([zVicino + (zLontano - zVicino) * t, h + Math.sin(t * Math.PI) * 2.4]);
-  }
-  volta.push([zLontano, h], [zVicino, h]);
-  sagomaSulMuro(ctx, vista, x, volta, 'rgba(160,186,198,0.85)');
-}
-
-function disegnaVelasca(ctx, vista, edificio, x, zVicino, zLontano) {
-  const h = edificio.altezza;
-  // il fusto stretto e il cappello che sporge: e' tutta li' la Torre Velasca
-  sagomaSulMuro(
-    ctx,
-    vista,
-    x,
-    [[zVicino + 3, 0], [zVicino + 3, h * 0.62], [zLontano - 3, h * 0.62], [zLontano - 3, 0]],
-    '#9a7f72',
-  );
-  sagomaSulMuro(
-    ctx,
-    vista,
-    x,
-    [
-      [zVicino + 3, h * 0.62],
-      [zVicino, h * 0.72],
-      [zVicino, h],
-      [zLontano, h],
-      [zLontano, h * 0.72],
-      [zLontano - 3, h * 0.62],
-    ],
-    '#8d7367',
-  );
-  for (let p = 1; p < 14; p += 1) {
-    const y = (h * p) / 14;
-    const rientro = y < h * 0.62 ? 3 : 0;
-    linea(ctx, vista, [x, y, zVicino + rientro], [x, y, zLontano - rientro], 'rgba(50,42,38,0.35)', 0.05);
-  }
-}
-
-function disegnaBosco(ctx, vista, edificio, x, zVicino, zLontano) {
-  const h = edificio.altezza;
-  sagomaSulMuro(ctx, vista, x, [[zVicino, 0], [zVicino, h], [zLontano, h], [zLontano, 0]], '#6f6f6d');
-
-  const piani = 13;
-  for (let p = 1; p <= piani; p += 1) {
-    const y = (h * p) / (piani + 1);
-    sagomaSulMuro(
-      ctx,
-      vista,
-      x,
-      [[zVicino, y], [zVicino, y + 0.35], [zLontano, y + 0.35], [zLontano, y]],
-      '#8b8b88',
-    );
-    for (let i = 0; i < 3; i += 1) {
-      if ((p + i) % 2 === 0) continue;
-      const z = zVicino + ((zLontano - zVicino) * (i + 0.5)) / 3;
-      chioma(ctx, vista, x, z, y + 1.9, 1.5, COLORI.albero[(p + i) % COLORI.albero.length]);
-    }
-  }
-}
-
-/** Una massa di foglie sul piano verticale x: serve al Bosco Verticale e ai
- *  platani del viale. */
-function chioma(ctx, vista, x, z, y, raggio, colore) {
-  const punti = [];
-  for (let i = 0; i <= 9; i += 1) {
-    const angolo = (Math.PI * 2 * i) / 9;
-    const r = raggio * (0.82 + 0.18 * ((i * 7) % 5) / 4);
-    punti.push([z + Math.cos(angolo) * r, y + Math.sin(angolo) * r * 0.92]);
-  }
-  sagomaSulMuro(ctx, vista, x, punti, colore);
-}
-
-/** L'Arco della Pace: scavalca la strada in fondo alla via. Non e' un
- *  ostacolo, e' un momento — si passa sotto e basta. */
-function disegnaArco(ctx, vista, z) {
-  const h = CITTA.arco.altezza;
-  const larghezza = BORDO_MARCIAPIEDE;
-  const spessore = 1.9;
-
-  for (const lato of [-1, 1]) {
-    const dentro = lato * (larghezza - spessore);
-    const fuori = lato * larghezza;
-    scatola(ctx, vista, {
-      xDentro: dentro,
-      xFuori: fuori,
-      zVicino: z - CITTA.arco.profondita / 2,
-      zLontano: z + CITTA.arco.profondita / 2,
-      yBasso: 0,
-      yAlto: h * 0.72,
-      lato: '#d9d2c2',
-      fronte: '#c8c1b1',
-    });
-  }
-
-  // l'attico, con la quadriga in sagoma
-  const zTesta = z - CITTA.arco.profondita / 2;
-  if (zTesta > 0.4) {
-    ctx.fillStyle = '#cfc8b8';
-    testa(ctx, vista, zTesta, -larghezza, larghezza, h * 0.72, h);
-    ctx.fillStyle = '#b3ab9a';
-    testa(ctx, vista, zTesta, -larghezza * 0.62, larghezza * 0.62, h * 0.74, h * 0.88);
-    // Il fornice non si disegna: e' un buco, e attraverso ci si vede la
-    // strada. Riempirlo anche solo di un velo lo farebbe sembrare tappato.
-    ctx.fillStyle = '#8e8878';
-    const cavalli = proietta(vista, 0, h, zTesta);
-    ctx.fillRect(cavalli.x - 1.6 * cavalli.scala, cavalli.y - 1.5 * cavalli.scala, 3.2 * cavalli.scala, 1.5 * cavalli.scala);
   }
 }
 
@@ -759,9 +544,10 @@ function disegnaAlbero(ctx, vista, albero, z) {
   linea(ctx, vista, [x, 0.16, z], [x, altezza * 0.55, z], COLORI.tronco, 0.34);
 
   const raggio = 2.1 * albero.taglia;
-  chioma(ctx, vista, x, z, altezza * 0.78, raggio, COLORI.albero[Math.floor(albero.z) % COLORI.albero.length]);
-  chioma(ctx, vista, x, z - raggio * 0.5, altezza * 0.62, raggio * 0.7, COLORI.albero[(Math.floor(albero.z) + 1) % COLORI.albero.length]);
-  chioma(ctx, vista, x, z + raggio * 0.5, altezza * 0.66, raggio * 0.72, COLORI.albero[(Math.floor(albero.z) + 2) % COLORI.albero.length]);
+  const tinta = (indice) => COLORI.albero[(Math.floor(albero.z) + indice) % COLORI.albero.length];
+  chioma(ctx, vista, x, z, altezza * 0.78, raggio, tinta(0));
+  chioma(ctx, vista, x, z - raggio * 0.5, altezza * 0.62, raggio * 0.7, tinta(1));
+  chioma(ctx, vista, x, z + raggio * 0.5, altezza * 0.66, raggio * 0.72, tinta(2));
 }
 
 function disegnaLampioneInPiedi(ctx, vista, lampione, z) {
@@ -776,11 +562,9 @@ function disegnaLampioneInPiedi(ctx, vista, lampione, z) {
   ctx.fill();
 }
 
-/** Il palo della linea aerea del tram, sul marciapiede della sede. */
 function disegnaPaloLinea(ctx, vista, z) {
   const x = LATO_TRAM * (BORDO_MARCIAPIEDE + 0.4);
   linea(ctx, vista, [x, 0.16, z], [x, 8.2, z], COLORI.palo, 0.2);
-  // il tirante che attraversa la strada, e i due isolatori
   linea(ctx, vista, [x, 7.6, z], [-LATO_TRAM * BORDO_MARCIAPIEDE, 8, z], COLORI.cavo, 0.05);
 }
 
@@ -793,9 +577,8 @@ function disegnaAuto(ctx, vista, auto, z) {
   const zVicino = z - lunghezza / 2;
   const zLontano = z + lunghezza / 2;
 
-  // ombra sotto
   ctx.fillStyle = 'rgba(0,0,0,0.22)';
-  fasciaStrada(ctx, vista, dentro - 0.1 * LATO_SOSTA, fuori + 0.1 * LATO_SOSTA, zVicino, zLontano, 0.008);
+  fascia(ctx, vista, dentro - 0.1 * LATO_SOSTA, fuori + 0.1 * LATO_SOSTA, zVicino, zLontano, 0.008);
 
   scatola(ctx, vista, {
     xDentro: dentro,
@@ -807,9 +590,9 @@ function disegnaAuto(ctx, vista, auto, z) {
     lato: colore,
     tetto: schiarisci(colore),
     fronte: scurisci(colore),
+    coda: CODA_ARREDI,
   });
 
-  // finestrini lungo la fiancata
   if (zVicino < 40) {
     ctx.fillStyle = COLORI.vetroAuto;
     const yVetro = auto.furgone ? [1.3, 2.1] : [0.95, 1.32];
@@ -817,8 +600,7 @@ function disegnaAuto(ctx, vista, auto, z) {
   }
 
   // Ruote. Non si disegnano sull'auto che si sta superando: a mezzo metro
-  // dall'obiettivo diventano due dischi neri grandi come lo schermo, e di
-  // quell'auto si vede comunque solo la fiancata.
+  // dall'obiettivo diventano due dischi neri grandi come lo schermo.
   if (zVicino < 3) return;
   ctx.fillStyle = '#1e2024';
   for (const zRuota of [zVicino + 0.95, zLontano - 0.95]) {
@@ -848,9 +630,9 @@ function disegnaTram(ctx, vista, z) {
     lato: COLORI.tramCorpo,
     tetto: '#c9c3ba',
     fronte: '#c9601f',
+    coda: CODA_ARREDI,
   });
 
-  // la fascia chiara e i finestrini
   ctx.fillStyle = COLORI.tramFascia;
   parete(ctx, vista, dentro - LATO_TRAM * 0.02, 2.55, 2.95, zVicino, zLontano);
   ctx.fillStyle = COLORI.tramVetro;
@@ -867,37 +649,22 @@ function disegnaTram(ctx, vista, z) {
     );
   }
 
-  // il pantografo che tocca il filo
   linea(ctx, vista, [(dentro + fuori) / 2, 3.3, z + 3], [(dentro + fuori) / 2, 5.4, z + 1.5], '#3a3d43', 0.09);
 }
 
-/** I fili della linea aerea, tirati lungo la sede del tram. Si disegnano dopo
- *  la citta' perche' passano sopra a tutto, ma prima degli ostacoli, che sono
- *  quello che il giocatore deve guardare. */
+/** I fili della linea aerea, tirati lungo la sede del tram. */
 function disegnaLineaAerea(ctx, vista) {
   const x = LATO_TRAM * (BORDO_STRADA + 1.4);
   const vicino = -DISTANZA_CAMERA + 1;
   linea(ctx, vista, [x, 5.6, vicino], [x, 5.6, DISTANZA_VISIBILE], COLORI.cavo, 0.05);
-  linea(ctx, vista, [x - LATO_TRAM * 0.5, 6.4, vicino], [x - LATO_TRAM * 0.5, 6.4, DISTANZA_VISIBILE], 'rgba(40,42,48,0.3)', 0.04);
-}
-
-function schiarisci(colore) {
-  return mescola(colore, 255, 0.22);
-}
-
-function scurisci(colore) {
-  return mescola(colore, 0, 0.25);
-}
-
-/** Sposta un colore esadecimale verso il bianco o il nero. Serve a ricavare
- *  tetto e fronte di un volume dal suo colore, senza doverne elencare tre. */
-function mescola(colore, verso, quanto) {
-  const n = parseInt(colore.slice(1), 16);
-  const canale = (spostamento) => {
-    const valore = (n >> spostamento) & 255;
-    return Math.round(valore + (verso - valore) * quanto);
-  };
-  return `rgb(${canale(16)},${canale(8)},${canale(0)})`;
+  linea(
+    ctx,
+    vista,
+    [x - LATO_TRAM * 0.5, 6.4, vicino],
+    [x - LATO_TRAM * 0.5, 6.4, DISTANZA_VISIBILE],
+    'rgba(40,42,48,0.3)',
+    0.04,
+  );
 }
 
 // --- ostacoli e monete -----------------------------------------------------
@@ -924,7 +691,7 @@ function disegnaPercorso(ctx, mondo) {
 
 function disegnaOstacolo(ctx, vista, ostacolo, z, mondo) {
   if (ostacolo.tipo === BUCA) return disegnaBuca(ctx, vista, ostacolo, z);
-  if (ostacolo.tipo === MONOPATTINO) return disegnaMonopattino(ctx, vista, ostacolo, z, mondo);
+  if (ostacolo.tipo === MONOPATTINO) return disegnaMonopattinoConMaranza(ctx, vista, ostacolo, z, mondo);
   return disegnaLampioneCaduto(ctx, vista, ostacolo, z);
 }
 
@@ -956,14 +723,10 @@ function contornoBuca(ctx, vista, buca, z, sinistra, destra, gonfia, y) {
 function disegnaBuca(ctx, vista, buca, z) {
   const { sinistra, destra } = estremiCorsie(buca);
 
-  // l'asfalto sbriciolato attorno
   ctx.fillStyle = COLORI.bucaBordo;
   contornoBuca(ctx, vista, buca, z, sinistra, destra, 1, 0.012);
-  // il vuoto
   ctx.fillStyle = buca.travolto ? '#33363c' : COLORI.buca;
   contornoBuca(ctx, vista, buca, z, sinistra, destra, 0.88, 0.014);
-  // il fondo, spostato in avanti: e' quel che da' profondita' invece di
-  // sembrare una macchia di vernice
   ctx.fillStyle = COLORI.bucaFondo;
   contornoBuca(ctx, vista, buca, z + buca.profondita * 0.07, sinistra, destra, 0.62, 0.016);
 }
@@ -972,11 +735,10 @@ function disegnaLampioneCaduto(ctx, vista, lampione, z) {
   const { sinistra, destra } = estremiCorsie(lampione);
   const y = ALTEZZA_LAMPIONE;
 
-  // Ombra sull'asfalto: senza, il palo sembra appoggiato da nessuna parte.
-  // Volutamente tenue e stretta: un'ombra marcata, vista da vicino, si legge
-  // come una buca, e in un gioco dove le buche si saltano e' un inganno.
+  // Ombra tenue e stretta: un'ombra marcata, vista da vicino, si legge come
+  // una buca, e in un gioco dove le buche si saltano e' un inganno.
   ctx.fillStyle = 'rgba(0,0,0,0.16)';
-  fasciaStrada(ctx, vista, sinistra, destra, z - 0.22, z + 0.22, 0.015);
+  fascia(ctx, vista, sinistra, destra, z - 0.22, z + 0.22, 0.015);
 
   const a = proietta(vista, sinistra - 0.3, y, z);
   const b = proietta(vista, destra + 0.3, y, z);
@@ -990,7 +752,6 @@ function disegnaLampioneCaduto(ctx, vista, lampione, z) {
   ctx.lineTo(b.x, b.y);
   ctx.stroke();
 
-  // la fascia gialla e nera: e' quel che si vede per primo da lontano
   ctx.strokeStyle = '#e8c545';
   ctx.lineWidth = spessore * 0.75;
   const passo = (destra + 0.3 - (sinistra - 0.3)) / 8;
@@ -1003,15 +764,12 @@ function disegnaLampioneCaduto(ctx, vista, lampione, z) {
     ctx.stroke();
   }
 
-  // la lampada rotta a un capo
   const capo = lampione.versoDestra ? proietta(vista, destra + 0.3, y, z) : a;
   ctx.fillStyle = '#c9ccd1';
   ctx.beginPath();
   ctx.ellipse(capo.x, capo.y, 0.5 * capo.scala, 0.24 * capo.scala, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // due montanti che lo tengono sollevato: senza, non si capisce che ci si
-  // passa sotto
   ctx.strokeStyle = '#4e5158';
   ctx.lineWidth = Math.max(1, 0.12 * a.scala);
   for (const x of [sinistra - 0.3, destra + 0.3]) {
@@ -1024,43 +782,27 @@ function disegnaLampioneCaduto(ctx, vista, lampione, z) {
   }
 }
 
-function disegnaMonopattino(ctx, vista, ostacolo, z, mondo) {
+function disegnaMonopattinoConMaranza(ctx, vista, ostacolo, z, mondo) {
   const x = xDiCorsia(ostacolo.corsiaInizio);
   const p = proietta(vista, x, 0, z);
   if (p.scala <= 0) return;
 
   ctx.fillStyle = 'rgba(0,0,0,0.3)';
   ctx.beginPath();
-  ctx.ellipse(p.x, p.y, 0.55 * p.scala, 0.18 * p.scala, 0, 0, Math.PI * 2);
+  ctx.ellipse(p.x, p.y, 0.4 * p.scala, 0.14 * p.scala, 0, 0, Math.PI * 2);
   ctx.fill();
 
   const sbanda = Math.sin(mondo.tempo * 3 + ostacolo.sbandata * 6) * 0.05;
   conFigura(ctx, p.x, p.y, p.scala, () => {
     ctx.rotate(sbanda);
-    ctx.fillStyle = '#3a3d43';
-    ctx.fillRect(-0.32, 0.06, 0.64, 0.08);
-    ctx.fillStyle = '#1b1d21';
-    for (const rx of [-0.3, 0.3]) {
-      ctx.beginPath();
-      ctx.arc(rx, 0.1, 0.11, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.strokeStyle = '#4a4e55';
-    ctx.lineWidth = 0.06;
-    ctx.beginPath();
-    ctx.moveTo(0.28, 0.1);
-    ctx.lineTo(0.34, 1.05);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(0.1, 1.05);
-    ctx.lineTo(0.58, 1.05);
-    ctx.stroke();
-
+    disegnaMonopattinoDiSpalle(ctx, { accento: ostacolo.sbandata > 0.5 ? '#6fd18a' : '#e8b23c' });
     disegnaFigura(ctx, {
       colore: COLORI.maranza,
       luce: COLORI.maranzaLuce,
-      base: 0.14,
+      base: 0.16,
       posa: 'monopattino',
+      cappello: CAPPELLI[Math.floor(ostacolo.sbandata * 4) % CAPPELLI.length],
+      borsello: COLORI.borsello,
     });
   });
 }
@@ -1149,244 +891,7 @@ function disegnaSimboloBonus(ctx, tipo, cx, cy, r) {
   ctx.stroke();
 }
 
-// --- figure ----------------------------------------------------------------
-
-/** Sposta l'origine ai piedi del personaggio e mette l'asse y verso l'alto,
- *  con l'unita' uguale a un metro. Dentro `disegna` si ragiona in metri. */
-function conFigura(ctx, x, y, scala, disegna) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(scala, -scala);
-  disegna();
-  ctx.restore();
-}
-
-/** Una persona **vista di spalle** che corre, alta 1,75 m, con l'origine fra i
- *  piedi. La stessa funzione disegna l'omino bianco e i maranza.
- *
- *  Da dietro una corsa non si legge come di profilo: le gambe non si aprono
- *  avanti e indietro sullo schermo, perche' quel movimento va nella direzione
- *  in cui si guarda. Quello che si vede davvero e', in ordine di evidenza:
- *
- *  1. il **tallone che si alza dietro**, con la pianta della scarpa che
- *     lampeggia a ogni passo;
- *  2. il **sobbalzo del busto**, due volte per falcata;
- *  3. le **braccia che escono di lato** quando vanno indietro e spariscono
- *     dietro il fianco quando vanno avanti;
- *  4. una leggera **torsione** delle spalle, contraria a quella del bacino.
- *
- *  Il codice qui sotto disegna esattamente queste quattro cose, in quest'ordine
- *  di importanza. Le braccia si disegnano **prima** del busto proprio perche'
- *  quella che va avanti debba finirci dietro. */
-function disegnaFigura(ctx, opzioni) {
-  const { colore, luce, fase = 0, posa = 'corsa', coltello = false, base = 0 } = opzioni;
-
-  ctx.save();
-  ctx.translate(0, base);
-
-  if (posa === 'scivolata') {
-    disegnaAccosciato(ctx, colore, luce);
-    ctx.restore();
-    return;
-  }
-
-  const destro = Math.sin(fase);
-  const sinistro = Math.sin(fase + Math.PI);
-  const corsa = posa === 'corsa';
-  const sobbalzo = corsa ? Math.abs(Math.cos(fase)) * 0.06 : 0;
-  const anca = 0.86 + sobbalzo;
-  const spalla = 1.4 + sobbalzo;
-
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-
-  // 1. gambe
-  ctx.strokeStyle = colore;
-  ctx.lineWidth = 0.17;
-  if (posa === 'salto') {
-    gambaInVolo(ctx, -1, destro, anca);
-    gambaInVolo(ctx, 1, sinistro, anca);
-  } else if (posa === 'monopattino') {
-    for (const segno of [-1, 1]) {
-      ctx.beginPath();
-      ctx.moveTo(segno * 0.1, anca);
-      ctx.lineTo(segno * 0.13, anca * 0.5);
-      ctx.lineTo(segno * 0.15, 0);
-      ctx.stroke();
-    }
-  } else {
-    gambaDiCorsa(ctx, -1, destro, anca, colore, luce);
-    gambaDiCorsa(ctx, 1, sinistro, anca, colore, luce);
-  }
-
-  // 4. torsione: il busto si gira appena, al contrario del passo. Appena:
-  // di piu' e l'omino sembra che stia per cadere di lato invece di correre.
-  if (corsa) ctx.rotate(destro * 0.02);
-
-  // 3. braccia, prima del busto: quella che va avanti deve finirci dietro
-  ctx.strokeStyle = colore;
-  ctx.lineWidth = 0.13;
-  if (posa === 'monopattino') {
-    for (const segno of [-1, 1]) {
-      ctx.beginPath();
-      ctx.moveTo(segno * 0.22, spalla);
-      ctx.lineTo(segno * 0.34, spalla - 0.18);
-      ctx.lineTo(segno * 0.4, spalla - 0.34);
-      ctx.stroke();
-    }
-  } else {
-    braccio(ctx, -1, sinistro, spalla, anca, colore, coltello);
-    braccio(ctx, 1, destro, spalla, anca, colore, coltello);
-  }
-
-  // 2. busto
-  ctx.fillStyle = colore;
-  riquadroTondo(ctx, -0.25, anca - 0.06, 0.5, spalla - anca + 0.22, 0.17);
-  ctx.fill();
-  ctx.fillStyle = luce;
-  riquadroTondo(ctx, -0.25, spalla - 0.12, 0.5, 0.16, 0.07);
-  ctx.fill();
-
-  // collo e testa
-  ctx.fillStyle = colore;
-  ctx.beginPath();
-  ctx.arc(0, spalla + 0.25, 0.17, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = luce;
-  ctx.beginPath();
-  ctx.arc(-0.05, spalla + 0.3, 0.09, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.restore();
-}
-
-/** Una gamba durante la corsa. `p` va da -1 (portata avanti, quasi nascosta
- *  dal corpo) a +1 (spinta indietro, tallone in alto). */
-function gambaDiCorsa(ctx, segno, p, anca, colore, luce) {
-  const dietro = Math.max(0, p);
-  const avanti = Math.max(0, -p);
-  const piedeY = dietro * dietro * 0.55;
-  const piedeX = segno * (0.1 + dietro * 0.12);
-  const ginocchioX = segno * (0.12 + avanti * 0.05);
-  const ginocchioY = anca * 0.5 + dietro * 0.12 + avanti * 0.14;
-
-  ctx.strokeStyle = colore;
-  ctx.beginPath();
-  ctx.moveTo(segno * 0.11, anca);
-  ctx.lineTo(ginocchioX, ginocchioY);
-  ctx.lineTo(piedeX, piedeY);
-  ctx.stroke();
-
-  // la pianta della scarpa: da dietro e' il segnale piu' forte della corsa
-  if (dietro > 0.25) {
-    ctx.fillStyle = luce;
-    ctx.beginPath();
-    ctx.ellipse(piedeX, piedeY, 0.105, 0.06, segno * -0.35, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
-/** In aria le gambe si raccolgono: e' quello che fa capire, in un fotogramma,
- *  che si sta scavalcando qualcosa e non correndo. */
-function gambaInVolo(ctx, segno, p, anca) {
-  ctx.beginPath();
-  ctx.moveTo(segno * 0.11, anca);
-  ctx.lineTo(segno * (0.2 + p * 0.06), anca * 0.62);
-  ctx.lineTo(segno * (0.13 + p * 0.1), 0.34 + Math.abs(p) * 0.14);
-  ctx.stroke();
-}
-
-function braccio(ctx, segno, p, spalla, anca, colore, coltello) {
-  const indietro = Math.max(0, p);
-  const avanti = Math.max(0, -p);
-  // Il braccio che va indietro esce bene di lato: e' l'unico dei due che si
-  // vede, perche' l'altro finisce dietro il busto, ed e' quindi lui a dover
-  // raccontare la bracciata.
-  const manoX = segno * (0.3 + indietro * 0.16 - avanti * 0.08);
-  const manoY = anca + 0.14 + indietro * 0.2 - avanti * 0.08;
-  const gomitoX = segno * (0.32 + indietro * 0.08);
-  const gomitoY = (spalla + manoY) / 2 + 0.04;
-
-  ctx.strokeStyle = colore;
-  ctx.beginPath();
-  ctx.moveTo(segno * 0.22, spalla);
-  ctx.lineTo(gomitoX, gomitoY);
-  ctx.lineTo(manoX, manoY);
-  ctx.stroke();
-
-  if (!coltello || segno !== 1) return;
-  ctx.save();
-  ctx.translate(manoX, manoY);
-  ctx.rotate(-0.6 + p * 0.35);
-  ctx.fillStyle = COLORI.coltello;
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.lineTo(0.07, 0.42);
-  ctx.lineTo(0, 0.5);
-  ctx.lineTo(-0.07, 0.42);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
-}
-
-/** La scivolata: non e' la figura in piedi schiacciata, e' un'altra posa.
- *  Schiacciandola verrebbe una testa ovale e le braccia spalancate, e da
- *  dietro non si capirebbe cosa sta succedendo. Qui invece le gambe sono
- *  distese in avanti (piu' lontane, quindi piu' in alto sullo schermo), le
- *  braccia raccolte e la testa resta tonda. Alta in tutto 0,8 m, come dice
- *  ALTEZZA_OMINO_ABBASSATO. */
-function disegnaAccosciato(ctx, colore, luce) {
-  ctx.strokeStyle = colore;
-  ctx.lineCap = 'round';
-
-  ctx.lineWidth = 0.17;
-  for (const segno of [-1, 1]) {
-    ctx.beginPath();
-    ctx.moveTo(segno * 0.1, 0.26);
-    ctx.lineTo(segno * 0.34, 0.4);
-    ctx.stroke();
-  }
-
-  ctx.fillStyle = colore;
-  riquadroTondo(ctx, -0.26, 0.2, 0.52, 0.36, 0.14);
-  ctx.fill();
-  ctx.fillStyle = luce;
-  riquadroTondo(ctx, -0.26, 0.44, 0.52, 0.13, 0.06);
-  ctx.fill();
-
-  ctx.strokeStyle = colore;
-  ctx.lineWidth = 0.12;
-  for (const segno of [-1, 1]) {
-    ctx.beginPath();
-    ctx.moveTo(segno * 0.24, 0.5);
-    ctx.lineTo(segno * 0.34, 0.28);
-    ctx.stroke();
-  }
-
-  ctx.fillStyle = colore;
-  ctx.beginPath();
-  ctx.arc(0, 0.65, 0.15, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = luce;
-  ctx.beginPath();
-  ctx.arc(-0.04, 0.69, 0.08, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-function riquadroTondo(ctx, x, y, larghezza, altezza, raggio) {
-  const r = Math.min(raggio, larghezza / 2, altezza / 2);
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + larghezza - r, y);
-  ctx.quadraticCurveTo(x + larghezza, y, x + larghezza, y + r);
-  ctx.lineTo(x + larghezza, y + altezza - r);
-  ctx.quadraticCurveTo(x + larghezza, y + altezza, x + larghezza - r, y + altezza);
-  ctx.lineTo(x + r, y + altezza);
-  ctx.quadraticCurveTo(x, y + altezza, x, y + altezza - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
-  ctx.closePath();
-}
+// --- personaggi ------------------------------------------------------------
 
 function disegnaCorridore(ctx, mondo) {
   const vista = mondo.vista;
@@ -1395,7 +900,6 @@ function disegnaCorridore(ctx, mondo) {
   const suolo = proietta(vista, x, 0, 0);
   const p = proietta(vista, x, corridore.y, 0);
 
-  // ombra a terra: si stringe quando si salta
   const stretta = 1 / (1 + corridore.y * 0.8);
   ctx.fillStyle = `rgba(0,0,0,${0.32 * stretta})`;
   ctx.beginPath();
@@ -1473,6 +977,8 @@ function disegnaInseguitori(ctx, mondo) {
         luce: COLORI.maranzaLuce,
         fase: mondo.inseguitori.fase * 1.1 + i * 2,
         coltello: true,
+        cappello: CAPPELLI[i % CAPPELLI.length],
+        borsello: COLORI.borsello,
       });
     });
   });
@@ -1505,8 +1011,7 @@ function margini(interfaccia) {
 }
 
 /** Imposta il font piu' grande che fa stare il testo nella larghezza data.
- *  Serve sugli schermi stretti: senza, la riga piu' lunga esce dallo schermo e
- *  si legge mezza frase. */
+ *  Serve sugli schermi stretti: senza, la riga piu' lunga esce dallo schermo. */
 function corpoCheCiSta(ctx, testo, corpoIniziale, larghezzaMassima, peso = 600) {
   let corpo = corpoIniziale;
   for (let tentativo = 0; tentativo < 14; tentativo += 1) {
@@ -1537,7 +1042,6 @@ function disegnaHud(ctx, mondo, interfaccia) {
   ctx.fillStyle = 'rgba(247,248,250,0.8)';
   ctx.fillText(`record ${interfaccia.record || 0}`, m.sinistro + bordo, alto + unita * 0.115);
 
-  // monete, sotto il punteggio: a destra ora c'e' il pulsante di pausa
   const yMonete = alto + unita * 0.175;
   ctx.fillStyle = COLORI.moneta;
   ctx.beginPath();
@@ -1667,48 +1171,85 @@ function velo(ctx, vista, opacita) {
   ctx.fillRect(0, 0, vista.larghezza, vista.altezza);
 }
 
+/** Il branco della schermata iniziale: quattro maranza a semicerchio, coltelli
+ *  e bottiglie rotte in mano, e due monopattini appoggiati. E' il ritratto di
+ *  chi ti sta per correre dietro, e si disegna **sopra** il velo scuro, cosi'
+ *  restano loro la cosa piu' chiara dello schermo. */
+function disegnaBranco(ctx, vista, tempo) {
+  const { figure, monopattini } = postiDelBranco(vista);
+
+  // ombre a terra, tutte insieme: cosi' nessuna finisce sopra una figura
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  for (const posto of [...monopattini, ...figure]) {
+    ctx.beginPath();
+    ctx.ellipse(posto.x, posto.y, posto.altezza * 0.26, posto.altezza * 0.055, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Quattro sagome dello stesso identico nero si leggerebbero come una macchia
+  // sola: ognuno ha il suo grigio, appena diverso dal vicino.
+  const TONI = ['#20222a', '#2b2f38', '#191b21', '#262a33'];
+
+  for (const [i, posto] of figure.entries()) {
+    const scala = posto.altezza / ALTEZZA_OMINO;
+    conFigura(ctx, posto.x, posto.y, scala, () => {
+      disegnaMaranzaDiFronte(ctx, {
+        colore: TONI[i % TONI.length],
+        luce: COLORI.maranzaLuce,
+        cappello: CAPPELLI[posto.cappello],
+        borsello: COLORI.borsello,
+        arma: posto.arma,
+        verso: posto.verso,
+        dondolo: Math.sin(tempo * 1.4 + posto.ritardo),
+      });
+    });
+  }
+
+  // i monopattini davanti a tutti: coprono qualche stinco e si vedono interi
+  for (const posto of monopattini) {
+    const scala = posto.altezza / 1.05;
+    conFigura(ctx, posto.x - posto.verso * scala * 0.6, posto.y, scala, () => {
+      if (posto.verso < 0) ctx.scale(-1, 1);
+      disegnaMonopattinoDiLato(ctx, { accento: posto.verso > 0 ? '#6fd18a' : '#e8b23c' });
+    });
+  }
+}
+
 function disegnaSchermataIniziale(ctx, mondo, interfaccia) {
   const vista = mondo.vista;
   const unita = Math.min(vista.larghezza, vista.altezza * 0.62);
-  velo(ctx, vista, 0.42);
+  velo(ctx, vista, 0.5);
+
+  disegnaBranco(ctx, vista, mondo.tempo);
 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = COLORI.testo;
-  ctx.font = `800 ${unita * 0.13}px system-ui, -apple-system, sans-serif`;
-  ctx.fillText('MARANZA', vista.larghezza / 2, vista.altezza * 0.2);
+  ctx.font = `800 ${unita * 0.125}px system-ui, -apple-system, sans-serif`;
+  ctx.fillText('MARANZA', vista.larghezza / 2, vista.altezza * 0.115);
   ctx.fillStyle = '#f4813c';
-  ctx.fillText('ESCAPE', vista.larghezza / 2, vista.altezza * 0.2 + unita * 0.14);
+  ctx.fillText('ESCAPE', vista.larghezza / 2, vista.altezza * 0.115 + unita * 0.135);
 
   ctx.fillStyle = 'rgba(247,248,250,0.85)';
   ctx.font = `600 ${unita * 0.045}px system-ui, -apple-system, sans-serif`;
-  ctx.fillText('ti inseguono. non farti prendere.', vista.larghezza / 2, vista.altezza * 0.2 + unita * 0.26);
+  ctx.fillText('ti inseguono. non farti prendere.', vista.larghezza / 2, vista.altezza * 0.28);
 
-  const righe = [
-    ['scorri a lato', 'cambi corsia: il monopattino'],
-    ['scorri in alto', 'salti: la buca'],
-    ['scorri in basso', 'ti abbassi: il lampione'],
-  ];
-  const y0 = vista.altezza * 0.46;
-  righe.forEach((riga, i) => {
-    const testo = `${riga[0]}  ·  ${riga[1]}`;
-    corpoCheCiSta(ctx, testo, unita * 0.042, vista.larghezza * 0.9);
-    ctx.textAlign = 'center';
-    ctx.fillStyle = COLORI.testo;
-    ctx.fillText(testo, vista.larghezza / 2, y0 + i * unita * 0.085);
-  });
-
+  const istruzioni = 'a lato il monopattino · in alto la buca · in basso il lampione';
+  corpoCheCiSta(ctx, istruzioni, unita * 0.038, vista.larghezza * 0.94);
   ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(247,248,250,0.8)';
+  ctx.fillText(istruzioni, vista.larghezza / 2, vista.altezza * 0.755);
+
   ctx.fillStyle = COLORI.testo;
   ctx.font = `700 ${unita * 0.06}px system-ui, -apple-system, sans-serif`;
   ctx.globalAlpha = 0.65 + 0.35 * Math.sin(mondo.tempo * 3);
-  ctx.fillText('tocca per scappare', vista.larghezza / 2, vista.altezza * 0.78);
+  ctx.fillText('tocca per scappare', vista.larghezza / 2, vista.altezza * 0.83);
   ctx.globalAlpha = 1;
 
   if (interfaccia.record) {
     ctx.font = `600 ${unita * 0.042}px system-ui, -apple-system, sans-serif`;
     ctx.fillStyle = 'rgba(247,248,250,0.7)';
-    ctx.fillText(`record ${interfaccia.record}`, vista.larghezza / 2, vista.altezza * 0.85);
+    ctx.fillText(`record ${interfaccia.record}`, vista.larghezza / 2, vista.altezza * 0.895);
   }
 }
 

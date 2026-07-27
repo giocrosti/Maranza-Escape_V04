@@ -9,7 +9,7 @@
  * la versione vecchia.
  */
 
-const VERSIONE = 'maranza-escape-v2';
+const VERSIONE = 'maranza-escape-v3';
 
 const FILE = [
   './',
@@ -31,6 +31,9 @@ const FILE = [
   './src/inseguitori.js',
   './src/citta.js',
   './src/pausa.js',
+  './src/pennello.js',
+  './src/figure.js',
+  './src/monumenti.js',
   './src/rng.js',
 ];
 

@@ -2,10 +2,12 @@
 
 Gioco di corsa infinita nel browser, ambientato su una via a grande scorrimento di
 Milano: tre corsie d'asfalto, la sede del tram con le rotaie e la linea aerea da una
-parte, la fila delle auto in sosta dall'altra, i platani sui marciapiedi e l'Arco
-della Pace in fondo alla via. Un omino bianco scappa da un gruppo di maranza col
-coltello: si saltano le buche, si schivano i monopattini cambiando corsia e ci si
-abbassa sotto i lampioni caduti.
+parte, la fila delle auto in sosta dall'altra, i platani sui marciapiedi. Lungo la
+corsa si passa davanti al Duomo, alla Galleria, alla Torre Velasca e al Bosco
+Verticale, e si corre sotto l'Arco della Pace. Un omino bianco scappa da un branco
+di maranza col cappellino, il borsello a tracolla e il coltello in mano: si saltano
+le buche, si schivano i monopattini cambiando corsia e ci si abbassa sotto i
+lampioni caduti.
 HTML5 Canvas e JavaScript vanilla, nessuna dipendenza da installare.
 
 E' pensato per stare sulla schermata Home di un iPhone: manifest, icone,
@@ -144,6 +146,9 @@ un browser.
 | `src/percorso.js` | genera la strada davanti: ostacoli, monete, bonus |
 | `src/inseguitori.js` | il distacco dai maranza: penalita', recupero, cattura |
 | `src/citta.js` | la sezione della via e dove stanno palazzi, monumenti, alberi, auto e tram |
+| `src/pennello.js` | le cinque forme prospettiche con cui e' disegnato tutto il mondo |
+| `src/figure.js` | persone e monopattini, di spalle e di fronte; il branco della home |
+| `src/monumenti.js` | le facciate dei monumenti, disegnate per essere riconosciute |
 | `src/pausa.js` | geometria del pulsante di pausa, condivisa fra disegno e tocco |
 | `src/mondo.js` | stato della partita e sua evoluzione: urti, raccolte, fine |
 | `src/record.js` | record personale in localStorage |
@@ -202,6 +207,29 @@ Qualche scelta che vale la pena conoscere prima di mettere le mani al codice:
   con un seme fisso: la strada dev'essere sempre la stessa strada, non un posto
   diverso a ogni partita. I monumenti — Galleria, Duomo, Torre Velasca, Bosco
   Verticale, Arco della Pace — stanno in punti stabiliti, non a caso.
+- **Di un monumento si guarda la facciata, non il fianco.** Percio' i monumenti
+  sono disegnati sul piano di testa — quello che ci guarda mentre ci si corre
+  incontro — e stanno sul filo della strada invece che arretrati come i palazzi:
+  una facciata che comincia otto metri di lato esce dallo schermo prima di farsi
+  riconoscere. Ognuno ha davanti una **piazza** di settanta metri senza edifici,
+  senza la quale il Duomo resterebbe dietro l'ultimo palazzo della fila. Di ognuno
+  e' disegnato solo quel poco che lo rende inconfondibile: del Duomo le guglie, i
+  cinque portali e la Madonnina; della Velasca il cappello sui puntoni; della
+  Galleria l'arcone col timpano e la volta di vetro; del Bosco le due torri
+  sfalsate con gli alberi sui balconi.
+- **L'Arco della Pace ha tre buchi veri.** I fornici non sono dipinti scuri: sono
+  ritagliati riempiendo contorno esterno e archi in un percorso solo con la regola
+  pari-dispari, quindi attraverso si vede la strada. Un velo scuro al posto del
+  buco lo farebbe sembrare tappato.
+- **Il cappellino dei maranza si distingue da un casco per le proporzioni**: la
+  calotta e' alta e tonda, la visiera e' piu' stretta della calotta ed e' piu'
+  scura, perche' sporgendo si mette in ombra da sola. Senza quello stacco viene
+  fuori un elmetto da cantiere.
+- **Il monopattino di spalle e quello di lato sono due disegni diversi**, non lo
+  stesso girato. Di spalle si vede una ruota sola, la pedana di taglio e il
+  manubrio largo; di lato le due ruote, la pedana e il piantone inclinato. Il
+  primo e' l'ostacolo che si incontra in strada, il secondo quello parcheggiato
+  sulla schermata iniziale — ed e' di lato che si capisce cosa sia.
 - **I due lati della via sono diversi apposta**: a sinistra la sede tranviaria con le
   rotaie, i pali e ogni tanto un tram fermo, a destra la fila delle auto in sosta con
   la riga blu. Una via simmetrica sembra un rendering; una via col tram da una parte

@@ -55,11 +55,21 @@ export const BOSCO = 'bosco';
  *  Le altezze non sono in scala fra loro: sono in scala con la strada, che e'
  *  l'unica cosa che il giocatore ha accanto per giudicare. */
 const MONUMENTI = [
-  { tipo: GALLERIA, lato: -1, z: 120, profondita: 30, altezza: 28 },
-  { tipo: DUOMO, lato: 1, z: 270, profondita: 46, altezza: 44 },
-  { tipo: VELASCA, lato: -1, z: 470, profondita: 26, altezza: 48 },
-  { tipo: BOSCO, lato: 1, z: 620, profondita: 28, altezza: 54 },
+  { tipo: GALLERIA, lato: -1, z: 120, profondita: 26, altezza: 32, larghezza: 22 },
+  { tipo: DUOMO, lato: 1, z: 270, profondita: 40, altezza: 48, larghezza: 25 },
+  { tipo: VELASCA, lato: -1, z: 470, profondita: 22, altezza: 52, larghezza: 16 },
+  { tipo: BOSCO, lato: 1, z: 620, profondita: 26, altezza: 58, larghezza: 22 },
 ];
+
+/** I monumenti stanno sul filo della strada, non arretrati come i palazzi:
+ *  una facciata che comincia otto metri di lato esce dallo schermo prima di
+ *  farsi riconoscere. */
+export const FILO_MONUMENTI = BORDO_STRADA + 0.6;
+
+/** Quanti metri di strada restano sgombri prima di un monumento. E' la
+ *  piazza: senza, il Duomo sta dietro l'ultimo palazzo della fila e non lo si
+ *  vede arrivare. */
+const PIAZZA = 72;
 
 /** L'Arco della Pace scavalca la strada: e' il fondo di corso Sempione, e ci
  *  si passa sotto correndo. Sta in alto, non tocca nessuno. */
@@ -95,8 +105,8 @@ function generaLato(lato, rng) {
   let z = rng() * 12;
 
   for (const monumento of miei) {
-    z = riempiFino(edifici, lato, z, monumento.z, rng);
-    edifici.push({ ...monumento, lato, tinta: 0, vetrine: false, balconi: false });
+    z = riempiFino(edifici, lato, z, monumento.z - PIAZZA, rng);
+    edifici.push({ ...monumento, lato, tinta: 0, vetrine: false, balconi: false, monumento: true });
     z = monumento.z + monumento.profondita + 2 + rng() * 4;
   }
   riempiFino(edifici, lato, z, PERIODO, rng);
