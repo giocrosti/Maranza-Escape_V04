@@ -1,0 +1,234 @@
+import { test, assert, assertUguale, assertQuasi } from './mini-test.js';
+import {
+  creaMondo,
+  avviaPartita,
+  avanzaMondo,
+  comando,
+  subisciErrore,
+  puoRiavviare,
+  terminaPartita,
+  RITARDO_RIAVVIO,
+  PUNTI_PER_MONETA,
+  DURATA_SCATTO,
+} from '../src/mondo.js';
+import { creaBuca, creaMonopattino } from '../src/ostacoli.js';
+import { creaRaccolta, MONETA, SCUDO, SCATTO, CALAMITA } from '../src/percorso.js';
+import { DISTACCO_INIZIALE, PENALITA_ERRORE } from '../src/inseguitori.js';
+import { DT_MASSIMO, VELOCITA_MASSIMA } from '../src/costanti.js';
+import { rngFinto } from './rng-finto.js';
+
+/** Una partita con un percorso deciso a mano: la generazione automatica e'
+ *  spenta spostando all'infinito il prossimo pezzo da creare. */
+function partitaControllata(ostacoli = [], raccolte = []) {
+  const mondo = creaMondo(390, 844);
+  avviaPartita(mondo);
+  mondo.percorso.ostacoli = ostacoli;
+  mondo.percorso.raccolte = raccolte;
+  mondo.percorso.prossimoZ = Infinity;
+  mondo.percorso.prossimoBonusZ = Infinity;
+  return mondo;
+}
+
+const rng = rngFinto(11);
+
+/** Fa correre il mondo per `secondi`. `durante` viene chiamata a ogni
+ *  fotogramma: e' li' che il finto giocatore decide cosa fare. */
+function corri(mondo, secondi, durante) {
+  const dt = 1 / 60;
+  for (let t = 0; t < secondi; t += dt) {
+    if (durante) durante(mondo);
+    avanzaMondo(mondo, dt, rng);
+  }
+  return mondo;
+}
+
+test('una partita comincia con tutto azzerato', () => {
+  const mondo = creaMondo(390, 844);
+  corri(mondo, 2); // un po' di schermata iniziale
+  avviaPartita(mondo);
+  assertUguale(mondo.stato, 'in-gioco');
+  assertUguale(mondo.distanza, 0);
+  assertUguale(mondo.punteggio, 0);
+  assertUguale(mondo.monete, 0);
+  assertUguale(mondo.errori, 0);
+  assertUguale(mondo.inseguitori.distacco, DISTACCO_INIZIALE);
+  assertUguale(mondo.corridore.posizione, 1, 'si riparte dalla corsia di mezzo');
+});
+
+test('correndo si fanno metri, e i metri sono punti', () => {
+  const mondo = partitaControllata();
+  corri(mondo, 3);
+  assert(mondo.distanza > 30, `in tre secondi si fanno piu di 30 metri, non ${mondo.distanza}`);
+  assertUguale(mondo.punteggio, Math.floor(mondo.distanza), 'un metro, un punto');
+});
+
+test('un errore fa guadagnare terreno agli inseguitori', () => {
+  const mondo = partitaControllata();
+  subisciErrore(mondo, 'buca');
+  assertQuasi(mondo.inseguitori.distacco, DISTACCO_INIZIALE - PENALITA_ERRORE, 1e-9);
+  assertUguale(mondo.errori, 1);
+  assertUguale(mondo.stato, 'in-gioco', 'un errore solo non basta a farsi prendere');
+});
+
+test('tre errori e ti prendono', () => {
+  const mondo = partitaControllata();
+  for (let i = 0; i < 3; i += 1) {
+    mondo.invulnerabileFinoA = 0; // l'invulnerabilita' si prova altrove
+    subisciErrore(mondo, 'monopattino');
+  }
+  assertUguale(mondo.stato, 'finita');
+  assertUguale(mondo.causaFine, 'monopattino', 'la schermata finale deve saper dire com e finita');
+  assertUguale(mondo.inseguitori.distacco, 0);
+});
+
+test('correndo pulito il vantaggio si riprende, ma non oltre il massimo', () => {
+  const mondo = partitaControllata();
+  subisciErrore(mondo, 'buca');
+  const dopoErrore = mondo.inseguitori.distacco;
+  corri(mondo, 3);
+  assert(mondo.inseguitori.distacco > dopoErrore, 'tre secondi puliti devono valere qualcosa');
+  corri(mondo, 40);
+  assert(
+    mondo.inseguitori.distacco <= DISTACCO_INIZIALE + 1e-9,
+    'nessuno diventa irraggiungibile a furia di correre',
+  );
+});
+
+test('subito dopo un errore si e intoccabili', () => {
+  const mondo = partitaControllata();
+  subisciErrore(mondo, 'buca');
+  const distacco = mondo.inseguitori.distacco;
+  assertUguale(subisciErrore(mondo, 'lampione'), false, 'il secondo urto immediato non conta');
+  assertUguale(mondo.inseguitori.distacco, distacco);
+  assertUguale(mondo.errori, 1);
+});
+
+test('lo scudo si mangia un errore e poi non c e piu', () => {
+  const mondo = partitaControllata();
+  mondo.scudo = true;
+  assertUguale(subisciErrore(mondo, 'buca'), false, 'con lo scudo non si perde terreno');
+  assertUguale(mondo.scudo, false, 'lo scudo si consuma');
+  assertUguale(mondo.inseguitori.distacco, DISTACCO_INIZIALE);
+  assertUguale(mondo.errori, 0);
+
+  mondo.invulnerabileFinoA = 0;
+  assertUguale(subisciErrore(mondo, 'buca'), true, 'il secondo errore si paga');
+});
+
+test('saltare al momento giusto evita davvero la buca', () => {
+  const mondo = partitaControllata([creaBuca(40, 1, 1, 3)]);
+  corri(mondo, 5, (m) => {
+    const zRelativo = 40 - m.distanza;
+    if (zRelativo < 4 && zRelativo > 3 && !m.corridore.inAria) comando(m, 'salta');
+  });
+  assertUguale(mondo.errori, 0, 'il salto era in tempo: non doveva costare nulla');
+  assertUguale(mondo.inseguitori.distacco, DISTACCO_INIZIALE);
+});
+
+test('correre dritti dentro una buca si paga', () => {
+  const mondo = partitaControllata([creaBuca(40, 1, 1, 3)]);
+  // il distacco piu' stretto della partita e' quello subito dopo l'urto:
+  // guardare solo il valore finale non direbbe niente, perche' nel frattempo
+  // si e' gia' ricominciato a recuperare
+  let minimo = DISTACCO_INIZIALE;
+  corri(mondo, 5, (m) => {
+    minimo = Math.min(minimo, m.inseguitori.distacco);
+  });
+  assertUguale(mondo.errori, 1);
+  assertUguale(mondo.causaFine, 'buca');
+  assertQuasi(minimo, DISTACCO_INIZIALE - PENALITA_ERRORE, 0.05, 'un errore costa la sua penalita');
+  assert(mondo.inseguitori.distacco > minimo, 'e poi si ricomincia a guadagnare terreno');
+});
+
+test('cambiare corsia in tempo evita il monopattino', () => {
+  const mondo = partitaControllata([creaMonopattino(40, 1)]);
+  corri(mondo, 5, (m) => {
+    if (40 - m.distanza < 12 && m.corridore.bersaglio === 1) comando(m, 'destra');
+  });
+  assertUguale(mondo.errori, 0);
+});
+
+test('durante lo scatto si passa attraverso tutto', () => {
+  const mondo = partitaControllata([creaMonopattino(40, 1)]);
+  mondo.scattoFinoA = mondo.tempo + 100;
+  corri(mondo, 4);
+  assertUguale(mondo.errori, 0, 'lo scatto travolge');
+  assertUguale(mondo.inseguitori.distacco, DISTACCO_INIZIALE);
+  assert(mondo.percorso.ostacoli.every((o) => o.travolto), 'l ostacolo travolto va segnato');
+});
+
+test('le monete si prendono solo nella corsia in cui stanno', () => {
+  const mia = partitaControllata([], [creaRaccolta(MONETA, 30, 1, 0.85)]);
+  corri(mia, 4);
+  assertUguale(mia.monete, 1, 'quella nella mia corsia si prende');
+  assertUguale(mia.punteggio, Math.floor(mia.distanza) + PUNTI_PER_MONETA);
+
+  const altrui = partitaControllata([], [creaRaccolta(MONETA, 30, 2, 0.85)]);
+  corri(altrui, 4);
+  assertUguale(altrui.monete, 0, 'quella di un altra corsia resta li');
+});
+
+test('la calamita tira anche le monete delle altre corsie', () => {
+  const mondo = partitaControllata([], [creaRaccolta(MONETA, 30, 2, 0.85)]);
+  mondo.calamitaFinoA = mondo.tempo + 100;
+  corri(mondo, 4);
+  assertUguale(mondo.monete, 1);
+});
+
+test('i bonus raccolti fanno quel che promettono', () => {
+  const scudo = partitaControllata([], [creaRaccolta(SCUDO, 30, 1, 1.1)]);
+  corri(scudo, 4);
+  assertUguale(scudo.scudo, true);
+
+  const scatto = partitaControllata([], [creaRaccolta(SCATTO, 30, 1, 1.1)]);
+  corri(scatto, 4);
+  assert(scatto.scattoFinoA > scatto.tempo, 'lo scatto deve essere acceso');
+  assert(scatto.scattoFinoA - scatto.tempo <= DURATA_SCATTO, 'e non piu del dovuto');
+  assert(scatto.inseguitori.distacco === DISTACCO_INIZIALE, 'con lo scatto si guadagna terreno');
+
+  const calamita = partitaControllata([], [creaRaccolta(CALAMITA, 30, 1, 1.1)]);
+  corri(calamita, 4);
+  assert(calamita.calamitaFinoA > calamita.tempo);
+});
+
+test('lo scatto fa andare piu forte', () => {
+  const normale = partitaControllata();
+  corri(normale, 2);
+  const veloce = partitaControllata();
+  veloce.scattoFinoA = veloce.tempo + 100;
+  corri(veloce, 2);
+  assert(veloce.distanza > normale.distanza * 1.3, 'lo scatto deve sentirsi');
+});
+
+test('tornare dall app in secondo piano non teletrasporta dentro un ostacolo', () => {
+  const mondo = partitaControllata();
+  avanzaMondo(mondo, 60, rng); // un minuto in un solo passo
+  assert(
+    mondo.distanza <= VELOCITA_MASSIMA * DT_MASSIMO + 1e-9,
+    `un fotogramma lungo un minuto ha fatto correre ${mondo.distanza.toFixed(1)} metri`,
+  );
+});
+
+test('fuori dalla partita i comandi non fanno niente', () => {
+  const mondo = creaMondo(390, 844);
+  assertUguale(comando(mondo, 'destra'), false, 'sulla schermata iniziale non si gioca');
+  assertUguale(mondo.corridore.bersaglio, 1);
+});
+
+test('si puo riprovare, ma non nello stesso istante in cui si perde', () => {
+  const mondo = partitaControllata();
+  assert(puoRiavviare(mondo) === false, 'durante la partita non si riparte');
+  terminaPartita(mondo, 'buca');
+  assert(!puoRiavviare(mondo), 'subito dopo la sconfitta il tocco non conta');
+  corri(mondo, RITARDO_RIAVVIO + 0.2);
+  assert(puoRiavviare(mondo), 'passato un attimo si puo riprovare');
+});
+
+test('a partita finita non si fanno piu metri', () => {
+  const mondo = partitaControllata();
+  corri(mondo, 2);
+  const distanza = mondo.distanza;
+  terminaPartita(mondo, 'buca');
+  corri(mondo, 2);
+  assertUguale(mondo.distanza, distanza, 'da fermi non si guadagnano punti');
+});

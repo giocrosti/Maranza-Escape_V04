@@ -1,0 +1,136 @@
+import { test, assert, assertUguale } from './mini-test.js';
+import {
+  creaPercorso,
+  generaAvanti,
+  ripulisci,
+  corsieLibere,
+  SPAZIO_MINIMO,
+  PRIMO_OSTACOLO,
+  MONETA,
+  BONUS,
+} from '../src/percorso.js';
+import { BUCA, MONOPATTINO, corsieOstacolo } from '../src/ostacoli.js';
+import {
+  CORSIE,
+  DISTANZA_VISIBILE,
+  VELOCITA_MASSIMA,
+  VELOCITA_SALTO,
+  GRAVITA,
+  SEMI_PROFONDITA_OMINO,
+} from '../src/costanti.js';
+import { rngFinto } from './rng-finto.js';
+
+/** Genera un percorso lungo `metri`, come se ci si corresse sopra davvero:
+ *  la velocita' cresce, e con lei la spaziatura. */
+function percorsoLungo(metri, seme = 3) {
+  const rng = rngFinto(seme);
+  const percorso = creaPercorso(rng);
+  for (let distanza = 0; distanza < metri; distanza += 20) {
+    const velocita = Math.min(VELOCITA_MASSIMA, 11 + distanza / 90);
+    generaAvanti(percorso, distanza, velocita, rng);
+  }
+  return percorso;
+}
+
+/** Gli ostacoli raggruppati per posizione: due monopattini affiancati stanno
+ *  alla stessa z e sono un ostacolo solo dal punto di vista del giocatore. */
+function gruppi(percorso) {
+  const per = new Map();
+  for (const ostacolo of percorso.ostacoli) {
+    if (!per.has(ostacolo.z)) per.set(ostacolo.z, []);
+    per.get(ostacolo.z).push(ostacolo);
+  }
+  return [...per.entries()].sort((a, b) => a[0] - b[0]).map(([z, gruppo]) => ({ z, gruppo }));
+}
+
+test('i primi metri sono liberi: c e il tempo di capire che si sta correndo', () => {
+  const percorso = percorsoLungo(200);
+  const primo = gruppi(percorso)[0];
+  assert(primo.z >= PRIMO_OSTACOLO, `il primo ostacolo arriva a ${primo.z.toFixed(1)} m`);
+});
+
+test('due ostacoli non si sovrappongono mai, con nessun seme', () => {
+  for (const seme of [1, 7, 42, 1234, 99999]) {
+    const elenco = gruppi(percorsoLungo(3000, seme));
+    assert(elenco.length > 40, `solo ${elenco.length} ostacoli: il test non sta guardando niente`);
+    for (let i = 1; i < elenco.length; i += 1) {
+      const spazio = elenco[i].z - elenco[i - 1].z;
+      assert(
+        spazio >= SPAZIO_MINIMO,
+        `seme ${seme}: due ostacoli a ${spazio.toFixed(1)} m, meno del minimo ${SPAZIO_MINIMO}`,
+      );
+    }
+  }
+});
+
+test('nessun ostacolo esce dalla strada', () => {
+  for (const ostacolo of percorsoLungo(3000).ostacoli) {
+    assert(ostacolo.quanteCorsie >= 1, 'un ostacolo che non occupa nessuna corsia non ha senso');
+    assert(ostacolo.corsiaInizio >= 0, 'comincia fuori strada a sinistra');
+    assert(
+      ostacolo.corsiaInizio + ostacolo.quanteCorsie <= CORSIE,
+      'finisce fuori strada a destra',
+    );
+    assertUguale(
+      corsieOstacolo(ostacolo).length,
+      ostacolo.quanteCorsie,
+      'le corsie dichiarate e quelle vere devono coincidere',
+    );
+  }
+});
+
+test('ogni buca si puo saltare, anche alla velocita massima', () => {
+  // un salto sta in aria 2v/g e a quella velocita' copre questi metri
+  const voloInMetri = ((2 * VELOCITA_SALTO) / GRAVITA) * VELOCITA_MASSIMA;
+  for (const ostacolo of percorsoLungo(4000).ostacoli) {
+    if (ostacolo.tipo !== BUCA) continue;
+    const daScavalcare = ostacolo.profondita + 2 * SEMI_PROFONDITA_OMINO;
+    assert(
+      daScavalcare < voloInMetri * 0.75,
+      `buca lunga ${ostacolo.profondita.toFixed(1)} m: troppo per un salto`,
+    );
+  }
+});
+
+test('due monopattini insieme lasciano sempre una corsia libera', () => {
+  let coppie = 0;
+  for (const { gruppo } of gruppi(percorsoLungo(4000))) {
+    if (gruppo.length < 2) continue;
+    assert(gruppo.every((o) => o.tipo === MONOPATTINO), 'solo i monopattini vanno in coppia');
+    coppie += 1;
+    assert(corsieLibere(gruppo).length >= 1, 'una coppia che chiude la strada e imbattibile');
+  }
+  assert(coppie > 0, 'in quattro chilometri una coppia di monopattini deve pur uscire');
+});
+
+test('la strada e generata fin dove si vede', () => {
+  const rng = rngFinto(5);
+  const percorso = creaPercorso(rng);
+  generaAvanti(percorso, 0, 11, rng);
+  assert(percorso.prossimoZ >= DISTANZA_VISIBILE, 'davanti agli occhi non devono esserci buchi');
+  assert(percorso.ostacoli.length > 0, 'e nemmeno il vuoto');
+});
+
+test('quel che e alle spalle viene buttato via, quel che e davanti no', () => {
+  const percorso = percorsoLungo(500);
+  const davanti = percorso.ostacoli.filter((o) => o.z > 300).length;
+  ripulisci(percorso, 300);
+  assert(percorso.ostacoli.every((o) => o.z > 280), 'e rimasto qualcosa di gia superato');
+  assertUguale(percorso.ostacoli.filter((o) => o.z > 300).length, davanti, 'non si butta il futuro');
+});
+
+test('le monete ci sono, e i bonus arrivano col contagocce', () => {
+  const percorso = percorsoLungo(3000);
+  const monete = percorso.raccolte.filter((r) => r.tipo === MONETA).length;
+  const bonus = percorso.raccolte.filter((r) => BONUS.includes(r.tipo));
+  assert(monete > 100, `solo ${monete} monete in tre chilometri`);
+  assert(bonus.length >= 5 && bonus.length <= 20, `${bonus.length} bonus in tre chilometri`);
+  assert(
+    new Set(bonus.map((b) => b.tipo)).size === BONUS.length,
+    'in tre chilometri devono uscire tutti e tre i tipi di bonus',
+  );
+  assert(
+    percorso.raccolte.every((r) => r.corsia >= 0 && r.corsia < CORSIE),
+    'una moneta fuori strada non si prende',
+  );
+});

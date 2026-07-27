@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Test — Maranza escape</title>
+    <style>
+      body {
+        font: 15px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        margin: 24px auto;
+        max-width: 820px;
+        padding: 0 16px;
+        background: #14161a;
+        color: #e9ecef;
+      }
+      h1 { font-size: 20px; }
+      h1.ok { color: #5ec07a; }
+      h1.ko { color: #e05543; }
+      ul { list-style: none; padding: 0; }
+      li { padding: 5px 0; border-bottom: 1px solid #2b2f36; }
+      li.ok b { color: #5ec07a; }
+      li.ko b { color: #e05543; }
+    </style>
+  </head>
+  <body>
+    <div id="esito">Eseguo i test...</div>
+    <script type="module">
+      // Ogni nuovo file di test va aggiunto a questo elenco.
+      import './test/proiezione.test.js';
+      import './test/corridore.test.js';
+      import './test/ostacoli.test.js';
+      import './test/percorso.test.js';
+      import './test/inseguitori.test.js';
+      import './test/mondo.test.js';
+      import './test/record.test.js';
+      import './test/pwa.test.js';
+      import { stampaRisultati, attendiTest } from './test/mini-test.js';
+
+      await attendiTest();
+      stampaRisultati(document.getElementById('esito'));
+    </script>
+  </body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "maranza-escape",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["dev-server.py", "8775"],
+      "port": 8775
+    }
+  ]
+}

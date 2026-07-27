@@ -1,0 +1,299 @@
+// Stato della partita e sua evoluzione nel tempo.
+// Modulo puro: nessun riferimento a DOM, canvas o eventi. Si puo' eseguire e
+// testare da solo, ed e' quello che fanno i test.
+
+import {
+  ACCELERAZIONE,
+  DT_MASSIMO,
+  VELOCITA_INIZIALE,
+  VELOCITA_MASSIMA,
+} from './costanti.js';
+import { creaVista, ridimensionaVista } from './proiezione.js';
+import { creaCorridore, avanzaCorridore, cambiaCorsia, salta, scivola, corsieOccupate, inciampa } from './corridore.js';
+import { prendeIlCorridore } from './ostacoli.js';
+import { creaPercorso, generaAvanti, ripulisci, MONETA, SCUDO, SCATTO, CALAMITA } from './percorso.js';
+import {
+  creaInseguitori,
+  azzeraInseguitori,
+  avanzaInseguitori,
+  avvicina,
+  allontana,
+  hannoPreso,
+} from './inseguitori.js';
+
+/** Quanto si aspetta prima di accettare il tocco che fa ripartire: senza, lo
+ *  stesso dito che ha provato a schivare farebbe ripartire subito la partita
+ *  senza far leggere il punteggio. */
+export const RITARDO_RIAVVIO = 0.9;
+
+/** Quanto vale una moneta, in punti. Un metro ne vale uno. */
+export const PUNTI_PER_MONETA = 25;
+
+export const DURATA_SCATTO = 4.5;
+export const DURATA_CALAMITA = 6;
+
+/** Di quanto va piu' forte l'omino durante lo scatto. */
+export const MOLTIPLICATORE_SCATTO = 1.55;
+
+/** Metri di vantaggio regalati al momento in cui si raccoglie lo scatto. */
+export const REGALO_SCATTO = 3;
+
+/** Quanto dura il barcollamento dopo un urto e quanto rallenta. */
+export const DURATA_INCIAMPO = 0.55;
+export const RALLENTAMENTO_INCIAMPO = 0.55;
+
+/** Dopo un urto si e' intoccabili per un istante: senza, un inciampo davanti a
+ *  un ostacolo largo lo farebbe contare due volte nello stesso secondo. */
+export const INVULNERABILITA_DOPO_URTO = 0.9;
+
+/** Quanto dura l'invulnerabilita' regalata dallo scudo che si consuma. */
+const INVULNERABILITA_SCUDO = 1.2;
+
+/** Quanto vicino bisogna passare a una moneta per prenderla, in metri. */
+export const RAGGIO_RACCOLTA = 1.1;
+
+/** Da quanto lontano la calamita comincia a tirare le monete. */
+const RAGGIO_CALAMITA = 11;
+
+/** Velocita' con cui scorre la strada nella schermata iniziale. */
+const VELOCITA_ATTESA = 7;
+
+export function creaMondo(larghezza, altezza, rng = Math.random) {
+  return {
+    vista: creaVista(larghezza, altezza),
+    tempo: 0,
+    stato: 'attesa', // 'attesa' | 'in-gioco' | 'finita'
+    causaFine: null, // 'buca' | 'monopattino' | 'lampione'
+    tempoInizio: 0,
+    tempoFine: null,
+
+    /** Metri percorsi nella partita in corso: e' l'origine di tutte le z. */
+    distanza: 0,
+    /** Metri percorsi da quando la pagina e' aperta: muove solo la citta',
+     *  cosi' facendo ripartire una partita i palazzi non saltano di colpo. */
+    scorrimento: 0,
+    velocita: VELOCITA_INIZIALE,
+
+    corridore: creaCorridore(),
+    percorso: creaPercorso(rng),
+    inseguitori: creaInseguitori(),
+
+    punteggio: 0,
+    monete: 0,
+    errori: 0,
+
+    scudo: false,
+    scattoFinoA: 0,
+    calamitaFinoA: 0,
+    inciampoFinoA: 0,
+    invulnerabileFinoA: 0,
+
+    /** Ultimo fatto degno di una scritta a schermo: { testo, tempo }. */
+    avviso: null,
+  };
+}
+
+export function scattoAttivo(mondo) {
+  return mondo.tempo < mondo.scattoFinoA;
+}
+
+export function calamitaAttiva(mondo) {
+  return mondo.tempo < mondo.calamitaFinoA;
+}
+
+/** Secondi che restano al bonus, zero se non e' attivo. */
+export function rimastoScatto(mondo) {
+  return Math.max(0, mondo.scattoFinoA - mondo.tempo);
+}
+
+export function rimastoCalamita(mondo) {
+  return Math.max(0, mondo.calamitaFinoA - mondo.tempo);
+}
+
+/** La velocita' di questo istante: cresce col tempo di corsa, raddoppia quasi
+ *  con lo scatto, crolla mentre si barcolla. */
+export function velocitaCorsa(mondo) {
+  if (mondo.stato !== 'in-gioco') return VELOCITA_ATTESA;
+  const corsa = mondo.tempo - mondo.tempoInizio;
+  let velocita = Math.min(VELOCITA_MASSIMA, VELOCITA_INIZIALE + ACCELERAZIONE * corsa);
+  if (scattoAttivo(mondo)) velocita *= MOLTIPLICATORE_SCATTO;
+  if (mondo.tempo < mondo.inciampoFinoA) velocita *= RALLENTAMENTO_INCIAMPO;
+  return velocita;
+}
+
+/** Comincia (o ricomincia) una partita. */
+export function avviaPartita(mondo, rng = Math.random) {
+  mondo.stato = 'in-gioco';
+  mondo.causaFine = null;
+  mondo.tempoFine = null;
+  mondo.tempoInizio = mondo.tempo;
+  mondo.distanza = 0;
+  mondo.velocita = VELOCITA_INIZIALE;
+  mondo.punteggio = 0;
+  mondo.monete = 0;
+  mondo.errori = 0;
+  mondo.scudo = false;
+  mondo.scattoFinoA = 0;
+  mondo.calamitaFinoA = 0;
+  mondo.inciampoFinoA = 0;
+  mondo.invulnerabileFinoA = 0;
+  mondo.avviso = null;
+  mondo.corridore = creaCorridore();
+  mondo.percorso = creaPercorso(rng);
+  azzeraInseguitori(mondo.inseguitori);
+  return mondo;
+}
+
+/** Vero quando il giocatore puo' far partire una partita con un tocco. */
+export function puoRiavviare(mondo) {
+  if (mondo.stato === 'attesa') return true;
+  if (mondo.stato !== 'finita') return false;
+  return mondo.tempo - mondo.tempoFine >= RITARDO_RIAVVIO;
+}
+
+/** L'unica porta d'ingresso dei comandi: tastiera e dito passano di qui.
+ *  `azione` vale 'sinistra' | 'destra' | 'salta' | 'scivola'. */
+export function comando(mondo, azione) {
+  if (mondo.stato !== 'in-gioco') return false;
+  if (azione === 'sinistra') cambiaCorsia(mondo.corridore, -1);
+  else if (azione === 'destra') cambiaCorsia(mondo.corridore, +1);
+  else if (azione === 'salta') salta(mondo.corridore);
+  else if (azione === 'scivola') scivola(mondo.corridore);
+  else return false;
+  return true;
+}
+
+/** Avanza il mondo di `dt` secondi. Ritorna il mondo stesso, modificato. */
+export function avanzaMondo(mondo, dt, rng = Math.random) {
+  const passo = Math.min(Math.max(dt, 0), DT_MASSIMO);
+  mondo.tempo += passo;
+  mondo.velocita = velocitaCorsa(mondo);
+  mondo.scorrimento += mondo.velocita * passo;
+
+  if (mondo.stato !== 'in-gioco') {
+    // Fuori dalla partita la strada continua a scorrere e l'omino continua a
+    // correre: la schermata iniziale e' il gioco stesso, senza pericoli.
+    avanzaCorridore(mondo.corridore, passo, mondo.velocita);
+    avanzaInseguitori(mondo.inseguitori, mondo.stato === 'finita' ? 0 : passo, {
+      velocita: mondo.velocita,
+    });
+    return mondo;
+  }
+
+  mondo.distanza += mondo.velocita * passo;
+  avanzaCorridore(mondo.corridore, passo, mondo.velocita);
+
+  generaAvanti(mondo.percorso, mondo.distanza, mondo.velocita, rng);
+  risolviOstacoli(mondo);
+  risolviRaccolte(mondo, passo);
+  ripulisci(mondo.percorso, mondo.distanza);
+
+  avanzaInseguitori(mondo.inseguitori, passo, {
+    scatto: scattoAttivo(mondo),
+    velocita: mondo.velocita,
+  });
+  if (hannoPreso(mondo.inseguitori)) terminaPartita(mondo, mondo.causaFine || 'raggiunto');
+
+  mondo.punteggio = Math.floor(mondo.distanza) + mondo.monete * PUNTI_PER_MONETA;
+  return mondo;
+}
+
+function risolviOstacoli(mondo) {
+  for (const ostacolo of mondo.percorso.ostacoli) {
+    const zRelativo = ostacolo.z - mondo.distanza;
+    // Fuori da questa finestra non c'e' niente da controllare: l'ostacolo e'
+    // ancora lontano o gia' alle spalle.
+    if (zRelativo > 4 || zRelativo < -6) continue;
+    if (!prendeIlCorridore(ostacolo, mondo.corridore, zRelativo)) continue;
+
+    ostacolo.colpito = true;
+    if (scattoAttivo(mondo)) {
+      // Lo scatto passa attraverso: l'ostacolo si sfascia e non costa nulla.
+      ostacolo.travolto = true;
+      continue;
+    }
+    subisciErrore(mondo, ostacolo.tipo);
+  }
+}
+
+/** Un errore. Ritorna true se e' costato davvero terreno. */
+export function subisciErrore(mondo, causa) {
+  if (mondo.tempo < mondo.invulnerabileFinoA) return false;
+
+  if (mondo.scudo) {
+    mondo.scudo = false;
+    mondo.invulnerabileFinoA = mondo.tempo + INVULNERABILITA_SCUDO;
+    mondo.avviso = { testo: 'scudo consumato', tempo: mondo.tempo };
+    return false;
+  }
+
+  avvicina(mondo.inseguitori);
+  inciampa(mondo.corridore, DURATA_INCIAMPO);
+  mondo.inciampoFinoA = mondo.tempo + DURATA_INCIAMPO;
+  mondo.invulnerabileFinoA = mondo.tempo + INVULNERABILITA_DOPO_URTO;
+  mondo.errori += 1;
+  mondo.causaFine = causa; // se questo e' l'ultimo errore, e' cosi' che e' finita
+
+  if (hannoPreso(mondo.inseguitori)) terminaPartita(mondo, causa);
+  return true;
+}
+
+function risolviRaccolte(mondo, dt) {
+  const calamita = calamitaAttiva(mondo);
+  const corsie = corsieOccupate(mondo.corridore);
+
+  for (const raccolta of mondo.percorso.raccolte) {
+    if (raccolta.presa) continue;
+    const zRelativo = raccolta.z - mondo.distanza;
+    if (zRelativo < -RAGGIO_RACCOLTA) continue;
+
+    if (calamita && zRelativo < RAGGIO_CALAMITA) {
+      // Si sposta verso la corsia dell'omino invece di aspettarlo li' dov'e'.
+      const mancante = mondo.corridore.posizione - raccolta.corsia - raccolta.spostamento;
+      raccolta.spostamento += mancante * Math.min(1, dt * 6);
+    }
+
+    if (zRelativo > RAGGIO_RACCOLTA) continue;
+    const inCorsia = calamita || corsie.includes(raccolta.corsia);
+    if (inCorsia) prendiRaccolta(mondo, raccolta);
+  }
+}
+
+function prendiRaccolta(mondo, raccolta) {
+  raccolta.presa = true;
+
+  if (raccolta.tipo === MONETA) {
+    mondo.monete += 1;
+    return;
+  }
+  if (raccolta.tipo === SCUDO) {
+    mondo.scudo = true;
+    mondo.avviso = { testo: 'scudo', tempo: mondo.tempo };
+    return;
+  }
+  if (raccolta.tipo === SCATTO) {
+    mondo.scattoFinoA = mondo.tempo + DURATA_SCATTO;
+    allontana(mondo.inseguitori, REGALO_SCATTO);
+    mondo.avviso = { testo: 'scatto', tempo: mondo.tempo };
+    return;
+  }
+  if (raccolta.tipo === CALAMITA) {
+    mondo.calamitaFinoA = mondo.tempo + DURATA_CALAMITA;
+    mondo.avviso = { testo: 'calamita', tempo: mondo.tempo };
+  }
+}
+
+export function terminaPartita(mondo, causa) {
+  if (mondo.stato === 'finita') return mondo;
+  mondo.stato = 'finita';
+  mondo.causaFine = causa;
+  mondo.tempoFine = mondo.tempo;
+  mondo.inseguitori.distacco = 0;
+  return mondo;
+}
+
+/** Aggiorna le dimensioni dell'area di gioco (finestra ridimensionata). */
+export function ridimensionaMondo(mondo, larghezza, altezza) {
+  ridimensionaVista(mondo.vista, larghezza, altezza);
+  return mondo;
+}

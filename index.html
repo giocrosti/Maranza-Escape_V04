@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<!-- viewport-fit=cover: la pagina arriva sotto la tacca e gli angoli arrotondati.
+     Le zone coperte le recupera il gioco leggendo i margini di sicurezza. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!-- il nome che compare sotto l'icona nella schermata Home -->
+<meta name="apple-mobile-web-app-title" content="Maranza">
+<meta name="theme-color" content="#7ea6cc">
+<meta name="description" content="Corri per Milano su tre corsie: salta le buche, schiva i monopattini, passa sotto i lampioni caduti.">
+<link rel="manifest" href="./manifest.json">
+<!-- iOS non legge le icone dal manifest: vuole questa -->
+<link rel="apple-touch-icon" href="./icone/icona-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="./icone/icona-192.png">
+<title>Maranza escape</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    /* stesso azzurro del cielo del gioco e del manifest: senza, all'avvio in
+       standalone si vede un lampo di un altro colore prima della strada */
+    background: #7ea6cc;
+    /* il gioco si comanda scorrendo: nessuna selezione, nessuno scroll da tocco */
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+    /* niente lampo grigio al tocco su Safari iOS */
+    -webkit-tap-highlight-color: transparent;
+    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  }
+  #gioco { display: block; }
+
+  /* Non si vede: serve solo a misurare le zone coperte da tacca, isola
+     dinamica e barra di casa. I valori si leggono da JavaScript. */
+  #sicurezza {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 0;
+    height: 0;
+    visibility: hidden;
+    pointer-events: none;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+  }
+</style>
+</head>
+<body>
+  <canvas id="gioco"></canvas>
+  <div id="sicurezza"></div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
