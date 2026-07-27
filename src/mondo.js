@@ -165,7 +165,44 @@ export function velocitaCorsa(mondo) {
 
 /** Comincia (o ricomincia) una partita. */
 export function avviaPartita(mondo, rng = Math.random) {
+  azzeraPartita(mondo, rng);
   mondo.stato = 'in-gioco';
+  mondo.tempoInizio = mondo.tempo;
+  return mondo;
+}
+
+/** Torna alla schermata iniziale, dalla pausa o da partita finita. La partita
+ *  in corso si butta via: sulla home non deve restare in scena niente di
+ *  quello che si stava correndo. */
+export function tornaAllaHome(mondo, rng = Math.random) {
+  if (mondo.stato !== 'pausa' && mondo.stato !== 'finita') return false;
+  azzeraPartita(mondo, rng);
+  mondo.stato = 'attesa';
+  return true;
+}
+
+/** Apre e chiude la pagina delle istruzioni. Si puo' solo dalla home: e' li'
+ *  che si ha tempo di leggere. */
+export function apriIstruzioni(mondo) {
+  if (mondo.stato !== 'attesa') return false;
+  mondo.stato = 'istruzioni';
+  return true;
+}
+
+export function chiudiIstruzioni(mondo) {
+  if (mondo.stato !== 'istruzioni') return false;
+  mondo.stato = 'attesa';
+  return true;
+}
+
+/** Vero quando si sta guardando qualcosa e non si sta correndo: home e
+ *  istruzioni. Serve al disegno, che li' non deve mettere in scena l'omino. */
+export function fuoriDallaCorsa(mondo) {
+  return mondo.stato === 'attesa' || mondo.stato === 'istruzioni';
+}
+
+/** Riporta tutto a zero, senza decidere in che stato si va a finire. */
+function azzeraPartita(mondo, rng) {
   mondo.causaFine = null;
   mondo.tempoFine = null;
   mondo.tempoInizio = mondo.tempo;

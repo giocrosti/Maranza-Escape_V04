@@ -32,8 +32,13 @@ secondi che restano ai bonus non scorrono. Si riprende toccando il pulsante, o
 toccando lo schermo. Il gioco si mette in pausa **da solo** quando l'app finisce in
 secondo piano: chi risponde a una chiamata non deve tornare e trovarsi morto.
 
+Dalla schermata iniziale si apre **come si gioca**, che spiega i gesti, gli ostacoli
+e i poteri con le icone vere del gioco. Dalla pausa e dalla schermata di sconfitta si
+puo' **tornare alla home**.
+
 Da tastiera, per provarlo sul computer: frecce o `WASD`, spazio per saltare,
-`Invio` per cominciare, `P` o `Esc` per la pausa, `F` per il contatore di fotogrammi.
+`Invio` per cominciare, `P` o `Esc` per la pausa, `H` per le istruzioni e per tornare
+alla home, `F` per il contatore di fotogrammi.
 
 Il monopattino e' alto, saltargli sopra non funziona; abbassarsi dentro una buca non
 serve a niente. Due ostacoli non capitano mai nello stesso punto, e fra uno e l'altro
@@ -160,7 +165,7 @@ un browser.
 | `src/pennello.js` | le cinque forme prospettiche con cui e' disegnato tutto il mondo |
 | `src/figure.js` | persone e monopattini, di spalle e di fronte; il branco della home |
 | `src/monumenti.js` | le facciate dei monumenti, disegnate per essere riconosciute |
-| `src/pausa.js` | geometria del pulsante di pausa, condivisa fra disegno e tocco |
+| `src/pulsanti.js` | dove stanno i pulsanti, geometria condivisa fra disegno e tocco |
 | `src/mondo.js` | stato della partita e sua evoluzione: urti, raccolte, fine |
 | `src/record.js` | record personale in localStorage |
 | `src/render.js` | tutto il disegno sul canvas |

@@ -13,6 +13,10 @@ import {
   inPausa,
   scattoAttivo,
   madonninaAttiva,
+  tornaAllaHome,
+  apriIstruzioni,
+  chiudiIstruzioni,
+  fuoriDallaCorsa,
   RITARDO_RIAVVIO,
   PUNTI_PER_MONETA,
   DURATA_SCATTO,
@@ -365,6 +369,54 @@ test('in pausa i comandi non arrivano all omino', () => {
   assertUguale(comando(mondo, 'salta'), false);
   assertUguale(mondo.corridore.bersaglio, 1);
   assertUguale(mondo.corridore.inAria, false);
+});
+
+test('dalla pausa e dalla sconfitta si torna alla home, e la partita sparisce', () => {
+  for (const preparaFine of [
+    (m) => mettiInPausa(m),
+    (m) => terminaPartita(m, 'buca'),
+  ]) {
+    const mondo = partitaControllata([creaMonopattino(40, 1)]);
+    corri(mondo, 2);
+    preparaFine(mondo);
+
+    assertUguale(tornaAllaHome(mondo), true);
+    assertUguale(mondo.stato, 'attesa');
+    assertUguale(mondo.distanza, 0, 'la partita di prima non deve restare in giro');
+    assertUguale(mondo.punteggio, 0);
+    assertUguale(mondo.errori, 0);
+    assertUguale(mondo.percorso.ostacoli.length, 0, 'sulla home non ci sono ostacoli in scena');
+    assertUguale(mondo.inseguitori.distacco, DISTACCO_INIZIALE);
+    assert(puoRiavviare(mondo), 'e da li si riparte con un tocco');
+  }
+});
+
+test('alla home non ci si torna mentre si corre', () => {
+  const mondo = partitaControllata();
+  corri(mondo, 1);
+  assertUguale(tornaAllaHome(mondo), false, 'in mezzo a una partita il pulsante non c e');
+  assertUguale(mondo.stato, 'in-gioco');
+});
+
+test('le istruzioni si aprono dalla home e si chiudono, e non si gioca da li', () => {
+  const mondo = creaMondo(390, 844);
+  assertUguale(apriIstruzioni(mondo), true);
+  assertUguale(mondo.stato, 'istruzioni');
+  assert(fuoriDallaCorsa(mondo), 'sulle istruzioni non si sta correndo');
+  assertUguale(puoRiavviare(mondo), false, 'un tocco chiude la pagina, non fa partire la corsa');
+  assertUguale(comando(mondo, 'salta'), false);
+
+  assertUguale(chiudiIstruzioni(mondo), true);
+  assertUguale(mondo.stato, 'attesa');
+  assert(puoRiavviare(mondo), 'tornati alla home si riparte');
+});
+
+test('le istruzioni si aprono solo dalla home', () => {
+  const mondo = partitaControllata();
+  corri(mondo, 1);
+  assertUguale(apriIstruzioni(mondo), false, 'non in mezzo a una partita');
+  mettiInPausa(mondo);
+  assertUguale(apriIstruzioni(mondo), false, 'e nemmeno dalla pausa');
 });
 
 test('si mette in pausa solo una partita in corso', () => {

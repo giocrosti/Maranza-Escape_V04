@@ -10,11 +10,14 @@ import {
   alternaPausa,
   mettiInPausa,
   inPausa,
+  tornaAllaHome,
+  apriIstruzioni,
+  chiudiIstruzioni,
 } from './mondo.js';
 import { disegnaMondo } from './render.js';
 import { collegaInput, azioneDaTasto } from './input.js';
 import { leggiRecord, aggiornaRecord } from './record.js';
-import { areaPausa, toccaPausa } from './pausa.js';
+import { areaPausa, toccaPausa, areaIstruzioni, areaCasa, toccaRiquadro } from './pulsanti.js';
 
 const canvas = document.getElementById('gioco');
 const ctx = canvas.getContext('2d');
@@ -129,23 +132,50 @@ function commutaPausa() {
   else tieniAccesoLoSchermo();
 }
 
-collegaInput(canvas, {
-  intercetta: (x, y) => {
-    if (mondo.stato !== 'in-gioco' && !inPausa(mondo)) return false;
-    if (!toccaPausa(areaPausa(mondo.vista, interfaccia.margini), x, y)) return false;
+/** Torna alla schermata iniziale e lascia spegnere lo schermo. */
+function vaiAllaHome() {
+  if (!tornaAllaHome(mondo)) return false;
+  lasciaSpegnereLoSchermo();
+  return true;
+}
+
+/** I pulsanti, in ordine di precedenza. Ritorna true se il tocco e' stato
+ *  preso da uno di loro, cosi' non conta anche come tocco sullo schermo. */
+function pulsanteSotto(x, y) {
+  const inGiocoOFermo = mondo.stato === 'in-gioco' || inPausa(mondo);
+  if (inGiocoOFermo && toccaPausa(areaPausa(mondo.vista, interfaccia.margini), x, y)) {
     commutaPausa();
     return true;
-  },
+  }
+  // "torna alla home": in pausa subito, a partita finita solo dopo il ritardo
+  // che protegge dai tocchi involontari, cioe' quando compare
+  const casaVisibile = inPausa(mondo) || (mondo.stato === 'finita' && puoRiavviare(mondo));
+  if (casaVisibile && toccaRiquadro(areaCasa(mondo.vista, inPausa(mondo)), x, y)) {
+    vaiAllaHome();
+    return true;
+  }
+  if (mondo.stato === 'attesa' && toccaRiquadro(areaIstruzioni(mondo.vista), x, y)) {
+    apriIstruzioni(mondo);
+    return true;
+  }
+  return false;
+}
+
+collegaInput(canvas, {
+  intercetta: pulsanteSotto,
   azione: (azione) => {
+    // Sulle istruzioni qualunque gesto chiude la pagina: non si comanda niente.
+    if (mondo.stato === 'istruzioni') chiudiIstruzioni(mondo);
     // In pausa una passata non comanda l'omino: fa solo riprendere.
-    if (inPausa(mondo)) commutaPausa();
+    else if (inPausa(mondo)) commutaPausa();
     // Fuori dalla partita anche una passata fa partire: chi ha gia' il pollice
     // in movimento non deve scoprire che serviva un tocco secco.
     else if (mondo.stato !== 'in-gioco') partenza();
     else comando(mondo, azione);
   },
   tocco: () => {
-    if (inPausa(mondo)) commutaPausa();
+    if (mondo.stato === 'istruzioni') chiudiIstruzioni(mondo);
+    else if (inPausa(mondo)) commutaPausa();
     else partenza();
   },
 });
@@ -153,20 +183,29 @@ collegaInput(canvas, {
 window.addEventListener('keydown', (evento) => {
   if (evento.key === 'p' || evento.key === 'P' || evento.key === 'Escape') {
     evento.preventDefault();
-    commutaPausa();
+    if (mondo.stato === 'istruzioni') chiudiIstruzioni(mondo);
+    else commutaPausa();
+    return;
+  }
+  if (evento.key === 'h' || evento.key === 'H') {
+    evento.preventDefault();
+    if (mondo.stato === 'attesa') apriIstruzioni(mondo);
+    else vaiAllaHome();
     return;
   }
   const azione = azioneDaTasto(evento.key);
   if (azione) {
     evento.preventDefault();
-    if (inPausa(mondo)) commutaPausa();
+    if (mondo.stato === 'istruzioni') chiudiIstruzioni(mondo);
+    else if (inPausa(mondo)) commutaPausa();
     else if (mondo.stato !== 'in-gioco') partenza();
     else comando(mondo, azione);
     return;
   }
   if (evento.key === 'Enter') {
     evento.preventDefault();
-    if (inPausa(mondo)) commutaPausa();
+    if (mondo.stato === 'istruzioni') chiudiIstruzioni(mondo);
+    else if (inPausa(mondo)) commutaPausa();
     else partenza();
   }
   // diagnostica a richiesta: durante una partita il contatore distrae

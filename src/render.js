@@ -27,7 +27,7 @@ import { BUCA, AIUOLA, MONOPATTINO, PONTICELLO, ARCO, ALTEZZA_PONTICELLO, corsie
 import { MONETA, SCUDO, SCATTO, CALAMITA, MADONNINA } from './percorso.js';
 import { abbassato } from './corridore.js';
 import { minaccia, DISTACCO_INIZIALE } from './inseguitori.js';
-import { areaPausa } from './pausa.js';
+import { areaPausa, areaIstruzioni, areaCasa } from './pulsanti.js';
 import {
   fascia,
   parete,
@@ -68,6 +68,7 @@ import {
   scattoAttivo,
   calamitaAttiva,
   madonninaAttiva,
+  fuoriDallaCorsa,
   rimastoScatto,
   rimastoCalamita,
   rimastoMadonnina,
@@ -161,10 +162,10 @@ export function disegnaMondo(ctx, mondo, interfaccia = {}) {
   disegnaCitta(ctx, vista, mondo.scorrimento);
   disegnaLineaAerea(ctx, vista);
   disegnaPercorso(ctx, mondo);
-  // Sulla schermata iniziale la strada e' solo lo sfondo del ritratto del
-  // branco: l'omino e gli inseguitori li' non ci vanno, o si ritroverebbero in
-  // mezzo al capannello senza motivo.
-  if (mondo.stato !== 'attesa') {
+  // Sulla schermata iniziale e sulle istruzioni la strada e' solo lo sfondo:
+  // l'omino e gli inseguitori li' non ci vanno, o si ritroverebbero in mezzo
+  // al capannello senza motivo.
+  if (!fuoriDallaCorsa(mondo)) {
     disegnaCorridore(ctx, mondo);
     disegnaInseguitori(ctx, mondo);
   }
@@ -182,8 +183,25 @@ export function disegnaMondo(ctx, mondo, interfaccia = {}) {
 
   if (mondo.stato === 'apparizione') disegnaApparizione(ctx, mondo);
   if (mondo.stato === 'attesa') disegnaSchermataIniziale(ctx, mondo, interfaccia);
+  if (mondo.stato === 'istruzioni') disegnaIstruzioni(ctx, mondo);
   if (mondo.stato === 'pausa') disegnaSchermataPausa(ctx, mondo, interfaccia);
   if (mondo.stato === 'finita') disegnaSchermataFine(ctx, mondo, interfaccia);
+}
+
+/** Un pulsante rettangolare con la sua scritta. */
+function disegnaPulsante(ctx, area, testo, unita, evidenza = false) {
+  ctx.fillStyle = evidenza ? 'rgba(244,129,60,0.9)' : 'rgba(28,32,40,0.72)';
+  riquadroTondo(ctx, area.x, area.y, area.larghezza, area.altezza, area.altezza / 2);
+  ctx.fill();
+  ctx.strokeStyle = evidenza ? 'rgba(255,255,255,0.5)' : 'rgba(247,248,250,0.4)';
+  ctx.lineWidth = Math.max(1, unita * 0.004);
+  ctx.stroke();
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = COLORI.testo;
+  corpoCheCiSta(ctx, testo, area.altezza * 0.42, area.larghezza * 0.86, 700);
+  ctx.fillText(testo, area.x + area.larghezza / 2, area.y + area.altezza / 2);
 }
 
 // --- cielo -----------------------------------------------------------------
@@ -750,22 +768,65 @@ function disegnaTram(ctx, vista, z) {
     ctx.fillText('1623', pNumero.x, pNumero.y);
   }
 
-  // il faro tondo e il respingente sulla testa, quando la si vede
+  // Il tetto: una calotta piu' stretta della cassa, che sporge sui due lati.
+  // E' quella a togliere al tram l'aria di scatola da scarpe.
+  ctx.fillStyle = '#cfc5b0';
+  fascia(ctx, vista, dentro - LATO_TRAM * 0.06, fuori + LATO_TRAM * 0.06, zVicino, zLontano, 3.32);
+  ctx.fillStyle = '#b9ae99';
+  parete(ctx, vista, dentro - LATO_TRAM * 0.06, 3.24, 3.32, zVicino, zLontano);
+
+  // lo zoccolo scuro e i due carrelli sotto la cassa
+  ctx.fillStyle = COLORI.tramLegno;
+  parete(ctx, vista, filo, 0.3, 0.44, zVicino, zLontano);
+  ctx.fillStyle = '#26282d';
+  for (const zCarrello of [zVicino + lunghezza * 0.22, zLontano - lunghezza * 0.22]) {
+    parete(ctx, vista, dentro - LATO_TRAM * 0.06, 0.02, 0.34, zCarrello - 1.1, zCarrello + 1.1);
+    for (const zRuota of [zCarrello - 0.7, zCarrello + 0.7]) {
+      const ruota = proietta(vista, dentro, 0.32, zRuota);
+      if (ruota.scala <= 0) continue;
+      ctx.beginPath();
+      ctx.arc(ruota.x, ruota.y, 0.3 * ruota.scala, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // La coda, che e' la faccia che si vede arrivandogli dietro: finestrone,
+  // cassa della linea col numero, fanali rossi e respingente.
   if (zVicino > 0.4) {
     const centro = (dentro + fuori) / 2;
-    const faro = proietta(vista, centro, 1.5, zVicino);
-    ctx.fillStyle = '#f6efd8';
-    ctx.beginPath();
-    ctx.arc(faro.x, faro.y, 0.3 * faro.scala, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fillStyle = COLORI.tramFascia;
+    testa(ctx, vista, zVicino, dentro, fuori, 2.42, 3.3);
     ctx.fillStyle = COLORI.tramLegno;
-    ctx.beginPath();
-    ctx.arc(faro.x, faro.y, 0.36 * faro.scala, 0, Math.PI * 2);
-    ctx.stroke();
+    testa(ctx, vista, zVicino, dentro, fuori, 2.3, 2.46);
+    ctx.fillStyle = COLORI.tramVetro;
+    testa(ctx, vista, zVicino, dentro - LATO_TRAM * 0.25, fuori + LATO_TRAM * 0.25, 1.5, 2.3);
+
+    // la cassa della linea, nera con il numero
+    ctx.fillStyle = '#1d2024';
+    testa(ctx, vista, zVicino, dentro - LATO_TRAM * 0.5, fuori + LATO_TRAM * 0.5, 2.62, 3.12);
+    const pLinea = proietta(vista, centro, 2.87, zVicino);
+    if (pLinea.scala > 7) {
+      ctx.fillStyle = '#f2ead0';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = `700 ${0.42 * pLinea.scala}px system-ui, -apple-system, sans-serif`;
+      ctx.fillText('19', pLinea.x, pLinea.y);
+    }
+
+    // fanali e respingente
+    ctx.fillStyle = '#c0392b';
+    for (const lato of [-0.55, 0.55]) {
+      const fanale = proietta(vista, centro + lato, 1.15, zVicino);
+      ctx.beginPath();
+      ctx.arc(fanale.x, fanale.y, 0.14 * fanale.scala, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = COLORI.tramLegno;
+    testa(ctx, vista, zVicino, dentro - LATO_TRAM * 0.1, fuori + LATO_TRAM * 0.1, 0.5, 0.72);
   }
 
   // l'asta del trolley verso il filo
-  linea(ctx, vista, [(dentro + fuori) / 2, 3.3, z + 3], [(dentro + fuori) / 2, 5.5, z - 1], COLORI.tramLegno, 0.07);
+  linea(ctx, vista, [(dentro + fuori) / 2, 3.34, z + 3], [(dentro + fuori) / 2, 5.5, z - 1], COLORI.tramLegno, 0.07);
 }
 
 /** I fili della linea aerea, tirati lungo la sede del tram. */
@@ -1654,8 +1715,129 @@ function disegnaSchermataIniziale(ctx, mondo, interfaccia) {
   if (interfaccia.record) {
     ctx.font = `600 ${unita * 0.042}px system-ui, -apple-system, sans-serif`;
     ctx.fillStyle = 'rgba(247,248,250,0.7)';
-    ctx.fillText(`record ${interfaccia.record}`, vista.larghezza / 2, vista.altezza * 0.895);
+    ctx.fillText(`record ${interfaccia.record}`, vista.larghezza / 2, vista.altezza * 0.855);
   }
+
+  disegnaPulsante(ctx, areaIstruzioni(vista), 'come si gioca', unita);
+}
+
+/** La pagina delle istruzioni: i tre gesti, la regola dei tre errori e i
+ *  quattro poteri, ognuno col suo segno accanto. E' l'unica schermata dove si
+ *  legge invece di correre, quindi il testo puo' essere piccolo ma le icone
+ *  devono essere quelle vere del gioco: cosi' quando le si incontra in strada
+ *  sono gia' state viste. */
+function disegnaIstruzioni(ctx, mondo) {
+  const vista = mondo.vista;
+  const unita = Math.min(vista.larghezza, vista.altezza * 0.62);
+  velo(ctx, vista, 0.82);
+
+  const centro = vista.larghezza / 2;
+  const sinistra = Math.max(vista.larghezza * 0.08, centro - unita * 0.42);
+  const corpo = unita * 0.034;
+  const titolo = (testo, y) => {
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#f4813c';
+    ctx.font = `800 ${unita * 0.04}px system-ui, -apple-system, sans-serif`;
+    ctx.fillText(testo, sinistra, vista.altezza * y);
+  };
+  const riga = (testo, y, colonna = sinistra + unita * 0.09) => {
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(247,248,250,0.92)';
+    corpoCheCiSta(ctx, testo, corpo, vista.larghezza - colonna - vista.larghezza * 0.06);
+    ctx.fillText(testo, colonna, vista.altezza * y);
+  };
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = COLORI.testo;
+  ctx.font = `800 ${unita * 0.075}px system-ui, -apple-system, sans-serif`;
+  ctx.fillText('COME SI GIOCA', centro, vista.altezza * 0.075);
+
+  titolo('SI SCAPPA COSÌ', 0.145);
+  const gesti = [
+    [0.185, 'lato', 'scorri a lato: cambi corsia'],
+    [0.225, 'alto', 'scorri in alto: salti'],
+    [0.265, 'basso', 'scorri in basso: ti abbassi'],
+  ];
+  for (const [y, verso, testo] of gesti) {
+    disegnaFrecciaGesto(ctx, sinistra + unita * 0.03, vista.altezza * y, unita * 0.028, verso);
+    riga(testo, y);
+  }
+
+  titolo('CHI TI VUOLE FERMARE', 0.325);
+  const ostacoli = [
+    [0.365, 'buche e aiuole del sindaco: si saltano'],
+    [0.405, 'maranza sul monopattino, contromano: si cambia corsia'],
+    [0.445, 'ponticelli: ci si abbassa e si passa sotto'],
+    [0.485, "l'Arco della Pace: si passa solo dal buco in mezzo"],
+  ];
+  for (const [y, testo] of ostacoli) {
+    ctx.fillStyle = 'rgba(247,248,250,0.45)';
+    ctx.beginPath();
+    ctx.arc(sinistra + unita * 0.03, vista.altezza * y, unita * 0.008, 0, Math.PI * 2);
+    ctx.fill();
+    riga(testo, y);
+  }
+
+  titolo('TRE ERRORI E TI PRENDONO', 0.545);
+  riga('ogni errore ti mangia un terzo del distacco, e non si recupera più', 0.585, sinistra);
+
+  titolo('I POTERI', 0.645);
+  const poteri = [
+    [0.685, SCUDO, 'scudo: un poliziotto ti affianca e si mangia un errore'],
+    [0.725, SCATTO, 'car sharing: macchinina rossa, velocissimo e passi attraverso'],
+    [0.765, CALAMITA, 'carta di credito: le monete vengono da te da sole'],
+    [0.805, MADONNINA, 'Madonnina: dieci secondi al triplo, e non ti tocca nessuno'],
+  ];
+  for (const [y, tipo, testo] of poteri) {
+    const cx = sinistra + unita * 0.03;
+    const cy = vista.altezza * y;
+    ctx.fillStyle = COLORI_BONUS[tipo];
+    ctx.beginPath();
+    ctx.arc(cx, cy, unita * 0.024, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fbfcfd';
+    disegnaSimboloBonus(ctx, tipo, cx, cy, unita * 0.012);
+    riga(testo, y);
+  }
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = COLORI.testo;
+  ctx.font = `700 ${unita * 0.05}px system-ui, -apple-system, sans-serif`;
+  ctx.globalAlpha = 0.65 + 0.35 * Math.sin(mondo.tempo * 3);
+  ctx.fillText('tocca per tornare', centro, vista.altezza * 0.9);
+  ctx.globalAlpha = 1;
+}
+
+/** La freccia del gesto: una punta nella direzione della passata. */
+function disegnaFrecciaGesto(ctx, cx, cy, r, verso) {
+  ctx.fillStyle = 'rgba(247,248,250,0.9)';
+  ctx.save();
+  ctx.translate(cx, cy);
+  if (verso === 'alto') ctx.rotate(-Math.PI / 2);
+  if (verso === 'basso') ctx.rotate(Math.PI / 2);
+  if (verso === 'lato') {
+    // a lato la freccia e' doppia: si puo' andare da tutte e due le parti
+    for (const segno of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(segno * r, 0);
+      ctx.lineTo(segno * r * 0.25, -r * 0.62);
+      ctx.lineTo(segno * r * 0.25, r * 0.62);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+    return;
+  }
+  ctx.beginPath();
+  ctx.moveTo(r, 0);
+  ctx.lineTo(-r * 0.4, -r * 0.7);
+  ctx.lineTo(-r * 0.4, r * 0.7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
 }
 
 function disegnaSchermataPausa(ctx, mondo, interfaccia) {
@@ -1682,8 +1864,10 @@ function disegnaSchermataPausa(ctx, mondo, interfaccia) {
   ctx.fillStyle = COLORI.testo;
   ctx.font = `700 ${unita * 0.055}px system-ui, -apple-system, sans-serif`;
   ctx.globalAlpha = 0.65 + 0.35 * Math.sin(mondo.tempo * 3);
-  ctx.fillText('tocca per riprendere', vista.larghezza / 2, vista.altezza * 0.8);
+  ctx.fillText('tocca per riprendere', vista.larghezza / 2, vista.altezza * 0.78);
   ctx.globalAlpha = 1;
+
+  disegnaPulsante(ctx, areaCasa(vista, true), 'torna alla home', unita);
 }
 
 const SPIEGAZIONI = {
@@ -1788,6 +1972,8 @@ function disegnaSchermataFine(ctx, mondo, interfaccia) {
   ctx.fillStyle = COLORI.testo;
   ctx.font = `700 ${unita * 0.06}px system-ui, -apple-system, sans-serif`;
   ctx.globalAlpha = 0.65 + 0.35 * Math.sin(mondo.tempo * 3);
-  ctx.fillText('tocca per riprovare', vista.larghezza / 2, vista.altezza * 0.72);
+  ctx.fillText('tocca per riprovare', vista.larghezza / 2, vista.altezza * 0.7);
   ctx.globalAlpha = 1;
+
+  disegnaPulsante(ctx, areaCasa(vista, false), 'torna alla home', unita);
 }
