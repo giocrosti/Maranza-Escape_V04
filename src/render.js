@@ -46,7 +46,8 @@ import {
   disegnaMadonnina,
   disegnaMaranzaDiFronte,
   disegnaMonopattinoDiLato,
-  disegnaMonopattinoDiSpalle,
+  disegnaMonopattinoDiFronte,
+  disegnaMaranzaInSella,
   postiDelBranco,
   CAPPELLI,
   SEDILE_MACCHININA,
@@ -1043,12 +1044,13 @@ function disegnaMonopattinoConMaranza(ctx, vista, ostacolo, z, mondo) {
   const sbanda = Math.sin(mondo.tempo * 3 + ostacolo.sbandata * 6) * 0.05;
   conFigura(ctx, p.x, p.y, p.scala, () => {
     ctx.rotate(sbanda);
-    disegnaMonopattinoDiSpalle(ctx, { accento: ostacolo.sbandata > 0.5 ? '#6fd18a' : '#e8b23c' });
-    disegnaFigura(ctx, {
+    // Viene verso di noi, quindi lo si vede di faccia: faro acceso e non
+    // catarifrangente, e il maranza che ti guarda mentre arriva.
+    disegnaMonopattinoDiFronte(ctx, { accento: ostacolo.sbandata > 0.5 ? '#6fd18a' : '#e8b23c' });
+    disegnaMaranzaInSella(ctx, {
       colore: COLORI.maranza,
       luce: COLORI.maranzaLuce,
       base: 0.16,
-      posa: 'monopattino',
       cappello: CAPPELLI[Math.floor(ostacolo.sbandata * 4) % CAPPELLI.length],
       borsello: COLORI.borsello,
     });

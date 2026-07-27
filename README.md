@@ -19,7 +19,7 @@ Il telefono si tiene **in verticale**. Si comanda scorrendo il dito:
 
 | Passata | Cosa fa | Ostacoli che serve a passare |
 | --- | --- | --- |
-| a lato | cambia corsia | il maranza sul monopattino, e **l'Arco della Pace**, che si passa solo dal fornice centrale: i due piloni chiudono le corsie laterali |
+| a lato | cambia corsia | il maranza sul monopattino, che ti arriva **contromano**, e **l'Arco della Pace**, che si passa solo dal fornice centrale: i due piloni chiudono le corsie laterali |
 | in alto | salta | la buca (una, due o tre corsie) e l'**aiuola del sindaco**, cassone di cemento con l'erba alta che non taglia nessuno (una o due corsie) |
 | in basso | ti abbassi | il **ponticello** di ghisa che scavalca la strada |
 
@@ -68,8 +68,9 @@ momento giusto.
 | calamita | per qualche secondo le monete vengono a te anche dalle altre corsie | e' una carta di credito, e compare la scritta **oggi si fattura** |
 | **Madonnina** | dieci secondi al triplo della velocita' — il doppio della macchinina — e non ti tocca niente | il gioco si ferma due secondi, lei appare in mezzo ai raggi, poi si riparte con l'aureola |
 
-La Madonnina e' rara: una ogni ottocento metri buoni. E' la statua in cima alla guglia
-maggiore del Duomo, e per quei dieci secondi non ti prende nessuno.
+La Madonnina e' rarissima: la prima non prima di novecento metri, e poi una ogni
+chilometro e mezzo abbondante — un paio di minuti di corsa. E' la statua in cima alla
+guglia maggiore del Duomo, e per quei dieci secondi non ti prende nessuno.
 
 Il record e' salvato nel browser di questo telefono e non va da nessun'altra parte.
 
@@ -263,11 +264,20 @@ Qualche scelta che vale la pena conoscere prima di mettere le mani al codice:
   calotta e' alta e tonda, la visiera e' piu' stretta della calotta ed e' piu'
   scura, perche' sporgendo si mette in ombra da sola. Senza quello stacco viene
   fuori un elmetto da cantiere.
-- **Il monopattino di spalle e quello di lato sono due disegni diversi**, non lo
-  stesso girato. Di spalle si vede una ruota sola, la pedana di taglio e il
-  manubrio largo; di lato le due ruote, la pedana e il piantone inclinato. Il
-  primo e' l'ostacolo che si incontra in strada, il secondo quello parcheggiato
-  sulla schermata iniziale — ed e' di lato che si capisce cosa sia.
+- **I monopattini arrivano contromano**, e questo si mangia il tempo di reazione:
+  la velocita' con cui ti si avvicina un ostacolo fermo e' la tua, con loro e' la
+  somma delle due. Il generatore lo compensa facendoli nascere piu' avanti, di
+  quel tanto che si mangeranno (`spintaPerAvvicinamento`), e facendo partire da
+  li' il conto della distanza per l'ostacolo successivo. Cosi' li si incontra con
+  lo stesso preavviso di una buca, e la distanza minima garantita fra un ostacolo
+  e l'altro resta vera. Cominciano a muoversi solo da cinquanta metri, che e'
+  quello che rende il conto possibile.
+- **Il monopattino di faccia e quello di lato sono due disegni diversi**, non lo
+  stesso girato. Di faccia si vede una ruota sola di taglio, il manubrio largo e
+  il faro acceso — ed e' il faro a dire da lontano che quello ti viene incontro
+  invece di scappare come te. Di lato si vedono le due ruote, la pedana e il
+  piantone inclinato: e' quello parcheggiato sulla schermata iniziale, ed e' di
+  lato che si capisce cosa sia.
 - **I due lati della via sono diversi apposta**: a sinistra la sede tranviaria con le
   rotaie, i pali e ogni tanto un tram fermo, a destra la fila delle auto in sosta con
   la riga blu. Una via simmetrica sembra un rendering; una via col tram da una parte

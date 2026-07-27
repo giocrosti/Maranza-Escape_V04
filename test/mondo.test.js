@@ -162,10 +162,25 @@ test('correre dritti dentro una buca si paga', () => {
 
 test('cambiare corsia in tempo evita il monopattino', () => {
   const mondo = partitaControllata([creaMonopattino(40, 1)]);
+  // Il monopattino viene incontro, quindi la sua distanza va riletta a ogni
+  // fotogramma: darla per fissa vuol dire scansarsi quando e' gia' addosso.
   corri(mondo, 5, (m) => {
-    if (40 - m.distanza < 12 && m.corridore.bersaglio === 1) comando(m, 'destra');
+    const ostacolo = m.percorso.ostacoli[0];
+    if (!ostacolo) return;
+    if (ostacolo.z - m.distanza < 14 && m.corridore.bersaglio === 1) comando(m, 'destra');
   });
   assertUguale(mondo.errori, 0);
+});
+
+test('il monopattino ti viene incontro davvero', () => {
+  const mondo = partitaControllata([creaMonopattino(40, 1)]);
+  const partenza = mondo.percorso.ostacoli[0].z;
+  corri(mondo, 1.2, (m) => {
+    if (m.corridore.bersaglio === 1) comando(m, 'destra'); // via dalla sua corsia
+  });
+  const ostacolo = mondo.percorso.ostacoli[0];
+  assert(ostacolo, 'per il test serve che sia ancora in scena');
+  assert(ostacolo.z < partenza, `si e mosso da ${partenza} a ${ostacolo.z.toFixed(1)}: doveva avvicinarsi`);
 });
 
 test('durante lo scatto si passa attraverso tutto', () => {

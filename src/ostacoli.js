@@ -30,6 +30,17 @@ export const ALTEZZA_PONTICELLO = 1.05;
 /** Quanto e' profondo un monopattino col suo maranza sopra, in metri. */
 const PROFONDITA_MONOPATTINO = 1.4;
 
+/** I monopattini arrivano **contromano**, addosso a chi corre. Questa e' la
+ *  loro velocita', in metri al secondo: piano, ma sommata alla corsa fa una
+ *  bella differenza. */
+export const VELOCITA_MONOPATTINO = 4;
+
+/** Da quanto lontano cominciano a venirti incontro. Prima di allora stanno
+ *  fermi: serve a tenere il conto di quanto terreno guadagneranno, che e'
+ *  quello che il generatore deve compensare per non toglierti il tempo di
+ *  reazione. */
+export const DISTANZA_AVVICINAMENTO = 50;
+
 /** L'impalcato del ponticello e' stretto: si passa sotto in un attimo, ma per
  *  quell'attimo bisogna essere gia' abbassati. */
 const PROFONDITA_PONTICELLO = 1.1;
@@ -116,9 +127,31 @@ export function creaMonopattino(z, corsia) {
     corsiaInizio: corsia,
     quanteCorsie: 1,
     colpito: false,
+    velocitaVerso: VELOCITA_MONOPATTINO,
     // dondola guidando: e' cio' che lo distingue da un ostacolo fermo
     sbandata: (Math.floor(z * 31) % 100) / 100,
   };
+}
+
+/** Fa avanzare verso di noi gli ostacoli che si muovono. Quelli fermi non li
+ *  tocca, e nessuno si muove finche' non e' abbastanza vicino. */
+export function avvicinaOstacoli(ostacoli, distanzaPercorsa, dt) {
+  for (const ostacolo of ostacoli) {
+    if (!ostacolo.velocitaVerso) continue;
+    if (ostacolo.z - distanzaPercorsa > DISTANZA_AVVICINAMENTO) continue;
+    ostacolo.z -= ostacolo.velocitaVerso * dt;
+  }
+  return ostacoli;
+}
+
+/** Di quanto va spostato in avanti un ostacolo che verra' verso di noi, perche'
+ *  lo si incontri con lo stesso preavviso di uno fermo.
+ *
+ *  Senza questo, il generatore garantisce la distanza fra un ostacolo e
+ *  l'altro ma il monopattino se la mangia venendoti incontro, e ti arriva
+ *  addosso mezzo secondo dopo il precedente. */
+export function spintaPerAvvicinamento(velocitaCorsa) {
+  return (DISTANZA_AVVICINAMENTO * VELOCITA_MONOPATTINO) / (velocitaCorsa + VELOCITA_MONOPATTINO);
 }
 
 export function creaPonticello(z, corsiaInizio, quanteCorsie) {

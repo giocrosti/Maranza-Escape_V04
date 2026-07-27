@@ -802,54 +802,127 @@ export function disegnaMonopattinoDiLato(ctx, { tinta = '#3f4a52', accento = '#6
   ctx.fill();
 }
 
-/** Lo stesso monopattino visto **di spalle**, che e' come lo si incontra in
- *  strada: davanti si vede solo la ruota posteriore, la pedana di taglio e il
- *  manubrio largo in cima. E' il disegno che prima non si capiva, perche' le
- *  due ruote erano messe a fianco come in una vista laterale. */
-export function disegnaMonopattinoDiSpalle(ctx, { tinta = '#3f4a52', accento = '#6fd18a' } = {}) {
-  // ruota posteriore, vista di taglio: alta e stretta
+/** Lo stesso monopattino visto **di faccia**, che e' come lo si incontra: i
+ *  maranza arrivano contromano, addosso a chi corre. Di faccia si vede una
+ *  ruota sola di taglio, la pedana in larghezza, il manubrio largo e il faro
+ *  acceso — ed e' il faro a dire, da lontano, che quello ti sta venendo
+ *  incontro invece di scappare come te. */
+export function disegnaMonopattinoDiFronte(ctx, { tinta = '#3f4a52', accento = '#6fd18a' } = {}) {
   ctx.fillStyle = '#17191d';
   riquadroTondo(ctx, -0.055, 0.01, 0.11, 0.26, 0.05);
   ctx.fill();
 
-  // parafango con il catarifrangente
+  // parafango anteriore
   ctx.fillStyle = tinta;
   riquadroTondo(ctx, -0.085, 0.24, 0.17, 0.07, 0.03);
   ctx.fill();
-  ctx.fillStyle = '#d4483c';
-  riquadroTondo(ctx, -0.045, 0.26, 0.09, 0.035, 0.015);
-  ctx.fill();
 
-  // pedana: da dietro si vede la sua larghezza, non la sua lunghezza
   ctx.fillStyle = tinta;
   riquadroTondo(ctx, -0.14, 0.1, 0.28, 0.055, 0.02);
   ctx.fill();
   ctx.fillStyle = accento;
   ctx.fillRect(-0.12, 0.145, 0.24, 0.014);
 
-  // piantone
   ctx.strokeStyle = tinta;
   ctx.lineWidth = 0.055;
   ctx.lineCap = 'round';
   ctx.beginPath();
   ctx.moveTo(0, 0.15);
-  ctx.lineTo(0.015, 1.0);
+  ctx.lineTo(-0.015, 1.0);
   ctx.stroke();
 
-  // manubrio largo con le due manopole
   ctx.lineWidth = 0.045;
   ctx.beginPath();
-  ctx.moveTo(-0.24, 1.03);
-  ctx.lineTo(0.27, 1.03);
+  ctx.moveTo(-0.27, 1.03);
+  ctx.lineTo(0.24, 1.03);
   ctx.stroke();
   ctx.fillStyle = '#1d2024';
   for (const segno of [-1, 1]) {
     riquadroTondo(ctx, segno * 0.24 - 0.045, 0.99, 0.09, 0.08, 0.03);
     ctx.fill();
   }
-  ctx.fillStyle = accento;
-  riquadroTondo(ctx, -0.05, 1.06, 0.1, 0.06, 0.02);
+
+  // il faro, acceso: e' quello che dice che sta venendo verso di te
+  ctx.fillStyle = '#f6efd0';
+  ctx.beginPath();
+  ctx.ellipse(0, 0.93, 0.075, 0.06, 0, 0, Math.PI * 2);
   ctx.fill();
+  ctx.fillStyle = 'rgba(246,239,208,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(0, 0.93, 0.15, 0.12, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/** Il maranza in sella, visto di faccia: piedi sulla pedana, braccia tese al
+ *  manubrio e lo stesso sguardo storto degli altri. */
+export function disegnaMaranzaInSella(ctx, opzioni) {
+  const { colore = '#24262c', luce = '#474c56', cappello = CAPPELLI[0], borsello = '#8a8f98', base = 0 } =
+    opzioni;
+
+  ctx.save();
+  ctx.translate(0, base);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  const anca = 0.86;
+  const spalla = 1.42;
+
+  // gambe vicine, una un po' avanti all'altra sulla pedana
+  ctx.strokeStyle = colore;
+  ctx.lineWidth = 0.19;
+  for (const [segno, avanti] of [[-1, 0.04], [1, -0.02]]) {
+    ctx.beginPath();
+    ctx.moveTo(segno * 0.1, anca);
+    ctx.lineTo(segno * 0.12 + avanti, anca * 0.5);
+    ctx.lineTo(segno * 0.13 + avanti, 0.05);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = colore;
+  riquadroTondo(ctx, -0.29, anca - 0.1, 0.58, spalla - anca + 0.24, 0.14);
+  ctx.fill();
+
+  // braccia tese al manubrio
+  ctx.strokeStyle = colore;
+  ctx.lineWidth = 0.15;
+  for (const segno of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(segno * 0.26, spalla);
+    ctx.lineTo(segno * 0.3, spalla - 0.22);
+    ctx.lineTo(segno * 0.26, spalla - 0.44);
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle = borsello;
+  ctx.lineWidth = 0.075;
+  ctx.lineCap = 'butt';
+  ctx.beginPath();
+  ctx.moveTo(-0.22, spalla - 0.02);
+  ctx.lineTo(0.2, anca + 0.02);
+  ctx.stroke();
+  ctx.lineCap = 'round';
+  ctx.fillStyle = borsello;
+  riquadroTondo(ctx, 0.12, anca - 0.1, 0.24, 0.2, 0.05);
+  ctx.fill();
+
+  ctx.fillStyle = colore;
+  ctx.beginPath();
+  ctx.arc(0, spalla + 0.26, 0.175, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#e8ecf2';
+  for (const segno of [-1, 1]) {
+    ctx.save();
+    ctx.translate(segno * 0.072, spalla + 0.19);
+    ctx.rotate(segno * 0.42);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 0.048, 0.014, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  cappelloDiFronte(ctx, spalla + 0.26, cappello, luce);
+  ctx.restore();
 }
 
 // --- il branco della schermata iniziale ------------------------------------

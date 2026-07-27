@@ -24,6 +24,7 @@ import {
   creaPonticello,
   creaArco,
   corsieOstacolo,
+  spintaPerAvvicinamento,
 } from './ostacoli.js';
 
 export const MONETA = 'moneta';
@@ -34,10 +35,13 @@ export const MADONNINA = 'madonnina';
 
 export const BONUS = [SCUDO, SCATTO, CALAMITA];
 
-/** Ogni quanti metri, all'incirca, appare la Madonnina. E' rara di proposito:
- *  dieci secondi di corsa indistruttibile a velocita' tripla non possono
- *  capitare a ogni isolato. */
-const METRI_FRA_LE_MADONNINE = 820;
+/** Ogni quanti metri, all'incirca, appare la Madonnina — e dopo quanti la
+ *  prima. E' rarissima di proposito: dieci secondi di corsa indistruttibile a
+ *  velocita' tripla devono restare un avvenimento, non un rifornimento. A
+ *  regime capita una volta ogni un chilometro e mezzo abbondante, cioe' un paio
+ *  di minuti buoni di corsa. */
+const METRI_FRA_LE_MADONNINE = 1700;
+const PRIMA_MADONNINA = 900;
 
 /** Il primo ostacolo non arriva subito: i primi metri servono a capire che si
  *  sta correndo e che si puo' cambiare corsia. */
@@ -64,7 +68,7 @@ export function creaPercorso(rng) {
     raccolte: [],
     prossimoZ: PRIMO_OSTACOLO,
     prossimoBonusZ: PRIMO_OSTACOLO + 120 + (rng ? rng() * 80 : 40),
-    prossimaMadonninaZ: 380 + (rng ? rng() * 220 : 110),
+    prossimaMadonninaZ: PRIMA_MADONNINA + (rng ? rng() * 500 : 250),
   };
 }
 
@@ -99,6 +103,13 @@ function aggiungiPezzo(percorso, velocita, rng) {
   const difficolta = difficoltaA(z);
 
   const gruppo = creaOstacoli(z, rng, difficolta);
+
+  // Chi ci verra' incontro nasce piu' avanti, di quel tanto che si mangera'
+  // avvicinandosi: cosi' lo si incontra con lo stesso preavviso di un ostacolo
+  // fermo, e la distanza garantita fra un ostacolo e l'altro resta vera.
+  const spinta = gruppo.some((o) => o.velocitaVerso) ? spintaPerAvvicinamento(velocita) : 0;
+  for (const ostacolo of gruppo) ostacolo.z += spinta;
+
   percorso.ostacoli.push(...gruppo);
   aggiungiRaccolte(percorso, gruppo, rng, difficolta);
 
@@ -106,7 +117,7 @@ function aggiungiPezzo(percorso, velocita, rng) {
   // avere il tempo di vederlo. Il margine in piu' si assottiglia con la
   // difficolta': e' il modo in cui il gioco stringe.
   const base = Math.max(SPAZIO_MINIMO, velocita * 1.15);
-  percorso.prossimoZ = z + base + (1 - difficolta) * 15 + rng() * 10;
+  percorso.prossimoZ = z + spinta + base + (1 - difficolta) * 15 + rng() * 10;
   return percorso;
 }
 
@@ -168,7 +179,7 @@ function aggiungiRaccolte(percorso, gruppo, rng, difficolta) {
 
   if (primo.z > percorso.prossimaMadonninaZ) {
     percorso.raccolte.push(bonusDopo(primo, gruppo, rng, MADONNINA));
-    percorso.prossimaMadonninaZ = primo.z + METRI_FRA_LE_MADONNINE + rng() * 260;
+    percorso.prossimaMadonninaZ = primo.z + METRI_FRA_LE_MADONNINE + rng() * 600;
     // la Madonnina non si divide la scena con nient'altro
     return;
   }

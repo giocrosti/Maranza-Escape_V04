@@ -1,4 +1,4 @@
-import { test, assert, assertUguale } from './mini-test.js';
+import { test, assert, assertUguale, assertQuasi } from './mini-test.js';
 import {
   creaPercorso,
   generaAvanti,
@@ -8,8 +8,18 @@ import {
   PRIMO_OSTACOLO,
   MONETA,
   BONUS,
+  MADONNINA,
 } from '../src/percorso.js';
-import { BUCA, MONOPATTINO, corsieOstacolo } from '../src/ostacoli.js';
+import {
+  BUCA,
+  MONOPATTINO,
+  corsieOstacolo,
+  creaBuca,
+  creaMonopattino,
+  avvicinaOstacoli,
+  VELOCITA_MONOPATTINO,
+  DISTANZA_AVVICINAMENTO,
+} from '../src/ostacoli.js';
 import {
   CORSIE,
   DISTANZA_VISIBILE,
@@ -117,6 +127,43 @@ test('quel che e alle spalle viene buttato via, quel che e davanti no', () => {
   ripulisci(percorso, 300);
   assert(percorso.ostacoli.every((o) => o.z > 280), 'e rimasto qualcosa di gia superato');
   assertUguale(percorso.ostacoli.filter((o) => o.z > 300).length, davanti, 'non si butta il futuro');
+});
+
+test('la Madonnina e un avvenimento, non un rifornimento', () => {
+  for (const seme of [3, 11, 77]) {
+    const percorso = percorsoLungo(3000, seme);
+    const madonnine = percorso.raccolte.filter((r) => r.tipo === MADONNINA).sort((a, b) => a.z - b.z);
+    assert(madonnine.length <= 2, `${madonnine.length} Madonnine in tre chilometri: troppe`);
+    assert(madonnine.length >= 1, 'in tre chilometri almeno una deve uscire');
+    assert(madonnine[0].z > 850, `la prima arriva gia a ${madonnine[0].z.toFixed(0)} m`);
+    for (let i = 1; i < madonnine.length; i += 1) {
+      assert(
+        madonnine[i].z - madonnine[i - 1].z > 1600,
+        'due Madonnine troppo vicine fra loro',
+      );
+    }
+  }
+});
+
+test('i monopattini vengono verso di te, e nascono piu avanti per compensare', () => {
+  const percorso = percorsoLungo(2000);
+  const mobili = percorso.ostacoli.filter((o) => o.tipo === MONOPATTINO);
+  assert(mobili.length > 5, 'servono monopattini per poter dire qualcosa');
+  assert(mobili.every((o) => o.velocitaVerso > 0), 'un monopattino fermo non e piu un monopattino');
+
+  // avvicinandosi guadagnano terreno, ma solo da vicino
+  const uno = creaMonopattino(200, 1);
+  avvicinaOstacoli([uno], 0, 1);
+  assertUguale(uno.z, 200, 'da duecento metri sta ancora fermo');
+
+  avvicinaOstacoli([uno], 200 - DISTANZA_AVVICINAMENTO + 1, 1);
+  assertQuasi(uno.z, 200 - VELOCITA_MONOPATTINO, 1e-9, 'da vicino viene avanti');
+});
+
+test('gli ostacoli fermi restano fermi', () => {
+  const buca = creaBuca(20, 1, 1, 3);
+  avvicinaOstacoli([buca], 19, 5);
+  assertUguale(buca.z, 20, 'una buca non ti corre incontro');
 });
 
 test('le monete ci sono, e i bonus arrivano col contagocce', () => {

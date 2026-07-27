@@ -10,7 +10,7 @@ import {
 } from './costanti.js';
 import { creaVista, ridimensionaVista } from './proiezione.js';
 import { creaCorridore, avanzaCorridore, cambiaCorsia, salta, scivola, corsieOccupate, inciampa } from './corridore.js';
-import { prendeIlCorridore } from './ostacoli.js';
+import { prendeIlCorridore, avvicinaOstacoli } from './ostacoli.js';
 import {
   creaPercorso,
   generaAvanti,
@@ -271,6 +271,8 @@ export function avanzaMondo(mondo, dt, rng = Math.random) {
   avanzaCorridore(mondo.corridore, passo, mondo.velocita);
 
   generaAvanti(mondo.percorso, mondo.distanza, mondo.velocita, rng);
+  // i monopattini arrivano contromano: si muovono prima che si guardi chi tocca
+  avvicinaOstacoli(mondo.percorso.ostacoli, mondo.distanza, passo);
   risolviOstacoli(mondo);
   risolviRaccolte(mondo, passo);
   ripulisci(mondo.percorso, mondo.distanza);
