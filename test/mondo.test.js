@@ -12,14 +12,19 @@ import {
   alternaPausa,
   inPausa,
   scattoAttivo,
+  madonninaAttiva,
   RITARDO_RIAVVIO,
   PUNTI_PER_MONETA,
   DURATA_SCATTO,
+  DURATA_MADONNINA,
+  DURATA_APPARIZIONE,
   GRIDO_CALAMITA,
+  GRIDO_SCATTO,
+  GRIDO_SCONFITTA,
 } from '../src/mondo.js';
 import { creaBuca, creaMonopattino } from '../src/ostacoli.js';
-import { creaRaccolta, MONETA, SCUDO, SCATTO, CALAMITA } from '../src/percorso.js';
-import { DISTACCO_INIZIALE, PENALITA_ERRORE } from '../src/inseguitori.js';
+import { creaRaccolta, MONETA, SCUDO, SCATTO, CALAMITA, MADONNINA } from '../src/percorso.js';
+import { DISTACCO_INIZIALE, PENALITA_ERRORE, ERRORI_PER_PERDERE } from '../src/inseguitori.js';
 import { DT_MASSIMO, VELOCITA_MASSIMA } from '../src/costanti.js';
 import { rngFinto } from './rng-finto.js';
 
@@ -87,17 +92,27 @@ test('tre errori e ti prendono', () => {
   assertUguale(mondo.inseguitori.distacco, 0);
 });
 
-test('correndo pulito il vantaggio si riprende, ma non oltre il massimo', () => {
+test('il terreno perso resta perso: correre pulito non lo restituisce', () => {
   const mondo = partitaControllata();
   subisciErrore(mondo, 'buca');
   const dopoErrore = mondo.inseguitori.distacco;
-  corri(mondo, 3);
-  assert(mondo.inseguitori.distacco > dopoErrore, 'tre secondi puliti devono valere qualcosa');
-  corri(mondo, 40);
-  assert(
-    mondo.inseguitori.distacco <= DISTACCO_INIZIALE + 1e-9,
-    'nessuno diventa irraggiungibile a furia di correre',
-  );
+  corri(mondo, 20);
+  assertUguale(mondo.inseguitori.distacco, dopoErrore, 'venti secondi puliti non valgono un metro');
+  assertUguale(mondo.stato, 'in-gioco', 'ma nemmeno si perde per il solo passare del tempo');
+});
+
+test('al terzo errore si perde, sempre e comunque', () => {
+  // anche con tutto il tempo del mondo fra un errore e l'altro
+  const mondo = partitaControllata();
+  for (let i = 0; i < 2; i += 1) {
+    subisciErrore(mondo, 'buca');
+    corri(mondo, 25);
+    assertUguale(mondo.stato, 'in-gioco', `dopo ${i + 1} errori si corre ancora`);
+  }
+  subisciErrore(mondo, 'buca');
+  assertUguale(mondo.stato, 'finita', 'il terzo errore chiude la partita');
+  assertUguale(mondo.errori, ERRORI_PER_PERDERE);
+  assertUguale(mondo.inseguitori.distacco, 0);
 });
 
 test('subito dopo un errore si e intoccabili', () => {
@@ -143,7 +158,6 @@ test('correre dritti dentro una buca si paga', () => {
   assertUguale(mondo.errori, 1);
   assertUguale(mondo.causaFine, 'buca');
   assertQuasi(minimo, DISTACCO_INIZIALE - PENALITA_ERRORE, 0.05, 'un errore costa la sua penalita');
-  assert(mondo.inseguitori.distacco > minimo, 'e poi si ricomincia a guadagnare terreno');
 });
 
 test('cambiare corsia in tempo evita il monopattino', () => {
@@ -190,7 +204,8 @@ test('i bonus raccolti fanno quel che promettono', () => {
   corri(scatto, 4);
   assert(scatto.scattoFinoA > scatto.tempo, 'lo scatto deve essere acceso');
   assert(scatto.scattoFinoA - scatto.tempo <= DURATA_SCATTO, 'e non piu del dovuto');
-  assert(scatto.inseguitori.distacco === DISTACCO_INIZIALE, 'con lo scatto si guadagna terreno');
+  assertUguale(scatto.avviso.testo, GRIDO_SCATTO, 'lo scatto e la macchinina del car sharing');
+  assertUguale(GRIDO_SCATTO, 'car sharing');
 
   const calamita = partitaControllata([], [creaRaccolta(CALAMITA, 30, 1, 1.1)]);
   corri(calamita, 4);
@@ -230,6 +245,59 @@ test('si puo riprovare, ma non nello stesso istante in cui si perde', () => {
   assert(!puoRiavviare(mondo), 'subito dopo la sconfitta il tocco non conta');
   corri(mondo, RITARDO_RIAVVIO + 0.2);
   assert(puoRiavviare(mondo), 'passato un attimo si puo riprovare');
+});
+
+test('la Madonnina ferma il gioco per due secondi, poi da dieci secondi di potere', () => {
+  const mondo = partitaControllata([], [creaRaccolta(MADONNINA, 30, 1, 1.1)]);
+  corri(mondo, 3);
+  assertUguale(mondo.stato, 'apparizione', 'appena presa, il mondo si ferma');
+  assert(!madonninaAttiva(mondo), 'il potere non e ancora partito: prima l apparizione');
+
+  const fermo = { tempo: mondo.tempo, distanza: mondo.distanza };
+  corri(mondo, DURATA_APPARIZIONE * 0.4);
+  assertUguale(mondo.tempo, fermo.tempo, 'durante l apparizione l orologio del mondo sta fermo');
+  assertUguale(mondo.distanza, fermo.distanza, 'e la strada non scorre');
+  assertUguale(mondo.stato, 'apparizione');
+
+  // un fotogramma per volta fino a quando l'apparizione finisce: i dieci
+  // secondi vanno misurati li', non dopo aver continuato a correre
+  let fotogrammi = 0;
+  while (mondo.stato === 'apparizione' && fotogrammi < 600) {
+    corri(mondo, 1 / 60);
+    fotogrammi += 1;
+  }
+  assertUguale(mondo.stato, 'in-gioco', 'dopo due secondi si riparte');
+  assert(madonninaAttiva(mondo), 'e li comincia il potere');
+  assertQuasi(mondo.madonninaFinoA - mondo.tempo, DURATA_MADONNINA, 0.05, 'dieci secondi pieni');
+});
+
+test('con la Madonnina si va piu forte della macchinina e non ti tocca niente', () => {
+  const conMadonnina = partitaControllata([creaMonopattino(60, 1), creaBuca(120, 0, 3, 4)]);
+  conMadonnina.madonninaFinoA = conMadonnina.tempo + 100;
+  corri(conMadonnina, 6);
+
+  const conScatto = partitaControllata();
+  conScatto.scattoFinoA = conScatto.tempo + 100;
+  corri(conScatto, 6);
+
+  assert(
+    conMadonnina.distanza > conScatto.distanza * 1.8,
+    `la Madonnina deve valere il doppio della macchinina (${conMadonnina.distanza.toFixed(0)} contro ${conScatto.distanza.toFixed(0)})`,
+  );
+  assertUguale(conMadonnina.errori, 0, 'indistruttibile vuol dire indistruttibile');
+  assertUguale(conMadonnina.inseguitori.distacco, DISTACCO_INIZIALE);
+});
+
+test('in apparizione i comandi non arrivano all omino', () => {
+  const mondo = partitaControllata([], [creaRaccolta(MADONNINA, 30, 1, 1.1)]);
+  corri(mondo, 3);
+  assertUguale(mondo.stato, 'apparizione');
+  assertUguale(comando(mondo, 'destra'), false);
+  assertUguale(puoRiavviare(mondo), false, 'un tocco durante l apparizione non ricomincia la partita');
+});
+
+test('la sconfitta ha la sua scritta', () => {
+  assertUguale(GRIDO_SCONFITTA, 'Ti hanno fatto il portafoglio');
 });
 
 test('in pausa non si muove piu niente, nemmeno il tempo', () => {

@@ -3,12 +3,11 @@ import {
   creaInseguitori,
   avanzaInseguitori,
   avvicina,
-  allontana,
   hannoPreso,
   minaccia,
   DISTACCO_INIZIALE,
   PENALITA_ERRORE,
-  RECUPERO,
+  ERRORI_PER_PERDERE,
 } from '../src/inseguitori.js';
 
 test('si parte col vantaggio pieno e nessuno ti ha ancora preso', () => {
@@ -28,40 +27,28 @@ test('ogni errore li porta piu vicini, ma mai dietro di te', () => {
 });
 
 test('tre errori bastano, due no', () => {
-  const due = creaInseguitori();
-  avvicina(due);
-  avvicina(due);
-  assert(!hannoPreso(due), 'dopo due errori si e messi male ma si corre ancora');
-
-  avvicina(due);
-  assert(hannoPreso(due), 'al terzo ti prendono');
+  const inseguitori = creaInseguitori();
+  for (let i = 1; i < ERRORI_PER_PERDERE; i += 1) {
+    avvicina(inseguitori);
+    assert(!hannoPreso(inseguitori), `dopo ${i} errori si e messi male ma si corre ancora`);
+  }
+  avvicina(inseguitori);
+  assert(hannoPreso(inseguitori), 'al terzo ti prendono');
 });
 
-test('correndo pulito si recupera, senza superare il vantaggio di partenza', () => {
+test('la penalita e un terzo esatto: il terzo errore azzera il distacco', () => {
+  assertQuasi(PENALITA_ERRORE * ERRORI_PER_PERDERE, DISTACCO_INIZIALE, 1e-9);
+  const inseguitori = creaInseguitori();
+  for (let i = 0; i < ERRORI_PER_PERDERE; i += 1) avvicina(inseguitori);
+  assertUguale(inseguitori.distacco, 0, 'niente briciole di virgola mobile a tenere in vita la partita');
+});
+
+test('il terreno perso non si riprende piu, per quanto si corra pulito', () => {
   const inseguitori = creaInseguitori();
   avvicina(inseguitori);
   const dopo = inseguitori.distacco;
-  avanzaInseguitori(inseguitori, 1);
-  assertQuasi(inseguitori.distacco, dopo + RECUPERO, 1e-9);
-
-  avanzaInseguitori(inseguitori, 100);
-  assertUguale(inseguitori.distacco, DISTACCO_INIZIALE, 'il recupero ha un tetto');
-});
-
-test('lo scatto fa recuperare molto piu in fretta', () => {
-  const piano = creaInseguitori();
-  const scattando = creaInseguitori();
-  avvicina(piano, 10);
-  avvicina(scattando, 10);
-  avanzaInseguitori(piano, 1);
-  avanzaInseguitori(scattando, 1, { scatto: true });
-  assert(scattando.distacco > piano.distacco * 1.5, 'lo scatto deve valere la pena');
-});
-
-test('allontanarli non li manda oltre il massimo', () => {
-  const inseguitori = creaInseguitori();
-  allontana(inseguitori, 50);
-  assertUguale(inseguitori.distacco, DISTACCO_INIZIALE);
+  avanzaInseguitori(inseguitori, 60, { velocita: 20 });
+  assertUguale(inseguitori.distacco, dopo, 'un minuto di corsa pulita non restituisce un metro');
 });
 
 test('la minaccia va da zero a uno', () => {

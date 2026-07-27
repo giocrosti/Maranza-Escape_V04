@@ -1,31 +1,48 @@
-// I tre modi di farsi prendere, e le regole che dicono quando succede.
+// I modi di farsi prendere, e le regole che dicono quando succede.
 // Modulo puro: un ostacolo e' un oggetto con dentro dove sta e quanto e' largo.
 //
-// Ogni ostacolo si evita in un modo solo, e sempre lo stesso:
+// Ogni ostacolo si passa con **un gesto suo**, sempre lo stesso:
 //   buca         -> si salta
+//   aiuola       -> si salta (e' un'aiuola del sindaco, con l'erba alta)
 //   monopattino  -> si cambia corsia (e' alto: saltargli sopra non funziona)
-//   lampione     -> ci si abbassa
-// La regola vale anche al contrario, ed e' quella che rende il gioco leggibile:
-// non esiste un ostacolo che si eviti in due modi diversi a seconda di come
-// capita.
+//   ponticello   -> ci si abbassa e si passa sotto
+//   arco         -> si passa in mezzo, e in mezzo si sta solo dalla corsia
+//                   centrale: i due piloni chiudono le altre due
+//
+// Quel che non copre tutte e tre le corsie si puo' sempre anche scansare di
+// lato: e' vero per il monopattino, per un'aiuola stretta, per un ponticello
+// corto. Il gesto proprio dell'ostacolo e' quello che funziona **sempre**,
+// anche quando l'ostacolo prende tutta la strada.
 
 import { CORSIE, SEMI_PROFONDITA_OMINO } from './costanti.js';
 import { aTerra, altezzaTesta, corsieOccupate } from './corridore.js';
 
 export const BUCA = 'buca';
+export const AIUOLA = 'aiuola';
 export const MONOPATTINO = 'monopattino';
-export const LAMPIONE = 'lampione';
+export const PONTICELLO = 'ponticello';
+export const ARCO = 'arco';
 
-/** Quanto sta in alto il palo del lampione caduto, in metri: sopra l'omino
+/** Quanto sta in alto l'intradosso del ponticello, in metri: sopra l'omino
  *  abbassato (0,75 m), sotto l'omino in piedi (1,75 m). */
-export const ALTEZZA_LAMPIONE = 1.05;
+export const ALTEZZA_PONTICELLO = 1.05;
 
 /** Quanto e' profondo un monopattino col suo maranza sopra, in metri. */
 const PROFONDITA_MONOPATTINO = 1.4;
 
-/** Il palo e' sottile: passa in fretta, ma per quel poco bisogna essere gia'
- *  abbassati. */
-const PROFONDITA_LAMPIONE = 0.7;
+/** L'impalcato del ponticello e' stretto: si passa sotto in un attimo, ma per
+ *  quell'attimo bisogna essere gia' abbassati. */
+const PROFONDITA_PONTICELLO = 1.1;
+
+/** Un'aiuola e' un cassone: ha il suo spessore da scavalcare. */
+const PROFONDITA_AIUOLA = 1.8;
+
+/** Lo spessore dei piloni dell'arco. */
+const PROFONDITA_ARCO = 4;
+
+/** Le corsie chiuse dai piloni dell'Arco della Pace: la centrale resta
+ *  libera, ed e' l'unico modo di passare. */
+const CORSIE_ARCO = [0, 2];
 
 /** Quanti vertici ha il contorno di una buca. */
 const VERTICI_BUCA = 18;
@@ -77,6 +94,20 @@ export function creaBuca(z, corsiaInizio, quanteCorsie, lunghezza) {
   };
 }
 
+/** Un'aiuola del sindaco: cassone di cemento, terra e mezzo metro d'erba mai
+ *  tagliata. Una o due corsie, mai tutte e tre. */
+export function creaAiuola(z, corsiaInizio, quanteCorsie) {
+  return {
+    tipo: AIUOLA,
+    z,
+    profondita: PROFONDITA_AIUOLA,
+    corsiaInizio,
+    quanteCorsie,
+    colpito: false,
+    seme: Math.floor(z * 1103) % 10000,
+  };
+}
+
 export function creaMonopattino(z, corsia) {
   return {
     tipo: MONOPATTINO,
@@ -90,21 +121,39 @@ export function creaMonopattino(z, corsia) {
   };
 }
 
-export function creaLampione(z, corsiaInizio, quanteCorsie) {
+export function creaPonticello(z, corsiaInizio, quanteCorsie) {
   return {
-    tipo: LAMPIONE,
+    tipo: PONTICELLO,
     z,
-    profondita: PROFONDITA_LAMPIONE,
+    profondita: PROFONDITA_PONTICELLO,
     corsiaInizio,
     quanteCorsie,
     colpito: false,
-    // da che parte pende la lampada rotta
+    // da che parte guardano le statuine sui pilastrini
     versoDestra: Math.floor(z) % 2 === 0,
   };
 }
 
-/** Le corsie coperte dall'ostacolo, in ordine. */
+/** L'Arco della Pace. Non e' piu' un monumento da guardare: e' un ostacolo, e
+ *  l'unico varco e' il fornice centrale, cioe' la corsia di mezzo. */
+export function creaArco(z) {
+  return {
+    tipo: ARCO,
+    z,
+    profondita: PROFONDITA_ARCO,
+    corsie: CORSIE_ARCO.slice(),
+    corsiaInizio: CORSIE_ARCO[0],
+    quanteCorsie: CORSIE_ARCO.length,
+    colpito: false,
+  };
+}
+
+/** Le corsie coperte dall'ostacolo, in ordine.
+ *  Quasi tutti occupano corsie di fila e bastano `corsiaInizio` e
+ *  `quanteCorsie`; l'arco no, chiude la prima e la terza e lascia aperta
+ *  quella in mezzo, e per lui c'e' l'elenco esplicito. */
 export function corsieOstacolo(ostacolo) {
+  if (ostacolo.corsie) return ostacolo.corsie.filter((c) => c >= 0 && c < CORSIE);
   const corsie = [];
   for (let i = 0; i < ostacolo.quanteCorsie; i += 1) {
     const corsia = ostacolo.corsiaInizio + i;
@@ -141,7 +190,8 @@ export function prendeIlCorridore(ostacolo, corridore, zRelativo) {
   const dentro = corsieOccupate(corridore).some((c) => corsieCoinvolte.includes(c));
   if (!dentro) return false;
 
-  if (ostacolo.tipo === BUCA) return aTerra(corridore);
-  if (ostacolo.tipo === LAMPIONE) return altezzaTesta(corridore) > ALTEZZA_LAMPIONE;
-  return true; // monopattino: se sei nella sua corsia ti prende, punto
+  if (ostacolo.tipo === BUCA || ostacolo.tipo === AIUOLA) return aTerra(corridore);
+  if (ostacolo.tipo === PONTICELLO) return altezzaTesta(corridore) > ALTEZZA_PONTICELLO;
+  // monopattino e piloni dell'arco: se sei nella loro corsia ti prendono, punto
+  return true;
 }

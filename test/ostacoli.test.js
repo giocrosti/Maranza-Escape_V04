@@ -1,14 +1,17 @@
 import { test, assert, assertUguale } from './mini-test.js';
 import {
   creaBuca,
+  creaAiuola,
   creaMonopattino,
-  creaLampione,
+  creaPonticello,
+  creaArco,
   prendeIlCorridore,
   corsieOstacolo,
   lasciaUnaCorsiaLibera,
   sovrapposto,
   profiloBuca,
 } from '../src/ostacoli.js';
+import { CORSIE } from '../src/costanti.js';
 import { creaCorridore, salta, scivola, avanzaCorridore } from '../src/corridore.js';
 
 function inVolo(corsia = 1) {
@@ -51,17 +54,50 @@ test('il monopattino si evita solo cambiando corsia', () => {
   assert(!prendeIlCorridore(monopattino, creaCorridore(2), 0), 'anche dall altro lato');
 });
 
-test('il lampione caduto si passa solo abbassandosi', () => {
-  const lampione = creaLampione(0, 0, 3);
-  assert(prendeIlCorridore(lampione, creaCorridore(1), 0), 'in piedi lo si prende in pieno');
-  assert(prendeIlCorridore(lampione, inVolo(1), 0), 'saltare peggiora le cose');
-  assert(!prendeIlCorridore(lampione, abbassato(1), 0), 'abbassati ci si passa sotto');
+test('sotto il ponticello si passa solo abbassandosi', () => {
+  const ponticello = creaPonticello(0, 0, 3);
+  assert(prendeIlCorridore(ponticello, creaCorridore(1), 0), 'in piedi lo si prende in pieno');
+  assert(prendeIlCorridore(ponticello, inVolo(1), 0), 'saltare peggiora le cose');
+  assert(!prendeIlCorridore(ponticello, abbassato(1), 0), 'abbassati ci si passa sotto');
 });
 
-test('un lampione su una corsia sola si evita anche di lato', () => {
-  const lampione = creaLampione(0, 2, 1);
-  assert(prendeIlCorridore(lampione, creaCorridore(2), 0));
-  assert(!prendeIlCorridore(lampione, creaCorridore(1), 0), 'in un altra corsia non tocca');
+test('un ponticello corto si evita anche di lato', () => {
+  const ponticello = creaPonticello(0, 2, 1);
+  assert(prendeIlCorridore(ponticello, creaCorridore(2), 0));
+  assert(!prendeIlCorridore(ponticello, creaCorridore(1), 0), 'in un altra corsia non tocca');
+});
+
+test('l aiuola del sindaco si scavalca, come una buca', () => {
+  const aiuola = creaAiuola(0, 1, 1);
+  assert(prendeIlCorridore(aiuola, creaCorridore(1), 0), 'a piedi ci si finisce dentro');
+  assert(!prendeIlCorridore(aiuola, inVolo(1), 0), 'scavalcandola si passa');
+  assert(prendeIlCorridore(aiuola, abbassato(1), 0), 'abbassarsi non serve: e un cassone, non un ponte');
+  assert(!prendeIlCorridore(aiuola, creaCorridore(0), 0), 'in un altra corsia non tocca');
+});
+
+test('un aiuola larga due corsie ne lascia comunque una', () => {
+  const aiuola = creaAiuola(0, 0, 2);
+  assertUguale(corsieOstacolo(aiuola).join(), '0,1');
+  assert(lasciaUnaCorsiaLibera(aiuola), 'due corsie su tre: la terza resta');
+  assert(!prendeIlCorridore(aiuola, creaCorridore(2), 0), 'nella corsia libera si passa a piedi');
+});
+
+test('dall arco si passa solo dalla corsia di mezzo', () => {
+  const arco = creaArco(0);
+  assertUguale(corsieOstacolo(arco).join(), '0,2', 'i piloni chiudono la prima e la terza');
+  assert(prendeIlCorridore(arco, creaCorridore(0), 0), 'a sinistra c e il pilone');
+  assert(prendeIlCorridore(arco, creaCorridore(2), 0), 'a destra pure');
+  assert(!prendeIlCorridore(arco, creaCorridore(1), 0), 'in mezzo si passa');
+  assert(prendeIlCorridore(arco, inVolo(0), 0), 'saltare contro un pilone non aiuta');
+  assert(prendeIlCorridore(arco, abbassato(0), 0), 'nemmeno abbassarsi');
+  assert(!prendeIlCorridore(arco, abbassato(1), 0), 'in mezzo si passa comunque');
+});
+
+test('l arco lascia libera una corsia, e le corsie dichiarate sono quelle vere', () => {
+  const arco = creaArco(0);
+  assert(lasciaUnaCorsiaLibera(arco));
+  assertUguale(corsieOstacolo(arco).length, arco.quanteCorsie);
+  assert(corsieOstacolo(arco).every((c) => c >= 0 && c < CORSIE));
 });
 
 test('quel che e lontano non tocca nessuno', () => {

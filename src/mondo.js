@@ -11,14 +11,23 @@ import {
 import { creaVista, ridimensionaVista } from './proiezione.js';
 import { creaCorridore, avanzaCorridore, cambiaCorsia, salta, scivola, corsieOccupate, inciampa } from './corridore.js';
 import { prendeIlCorridore } from './ostacoli.js';
-import { creaPercorso, generaAvanti, ripulisci, MONETA, SCUDO, SCATTO, CALAMITA } from './percorso.js';
+import {
+  creaPercorso,
+  generaAvanti,
+  ripulisci,
+  MONETA,
+  SCUDO,
+  SCATTO,
+  CALAMITA,
+  MADONNINA,
+} from './percorso.js';
 import {
   creaInseguitori,
   azzeraInseguitori,
   avanzaInseguitori,
   avvicina,
-  allontana,
   hannoPreso,
+  ERRORI_PER_PERDERE,
 } from './inseguitori.js';
 
 /** Quanto si aspetta prima di accettare il tocco che fa ripartire: senza, lo
@@ -29,17 +38,25 @@ export const RITARDO_RIAVVIO = 0.9;
 /** Quanto vale una moneta, in punti. Un metro ne vale uno. */
 export const PUNTI_PER_MONETA = 25;
 
-/** Quel che compare a schermo quando la calamita comincia a tirare monete. */
+/** Le scritte che compaiono a schermo quando si raccoglie un bonus, e quella
+ *  che chiude la partita. */
 export const GRIDO_CALAMITA = 'oggi si fattura';
+export const GRIDO_SCATTO = 'car sharing';
+export const GRIDO_SCONFITTA = 'Ti hanno fatto il portafoglio';
 
 export const DURATA_SCATTO = 4.5;
 export const DURATA_CALAMITA = 6;
 
-/** Di quanto va piu' forte l'omino durante lo scatto. */
-export const MOLTIPLICATORE_SCATTO = 1.55;
+/** La Madonnina: dieci secondi indistruttibili al triplo della velocita'. */
+export const DURATA_MADONNINA = 10;
 
-/** Metri di vantaggio regalati al momento in cui si raccoglie lo scatto. */
-export const REGALO_SCATTO = 3;
+/** Quanto resta fermo il gioco mentre la Madonnina appare. */
+export const DURATA_APPARIZIONE = 2;
+
+/** Di quanto va piu' forte l'omino durante lo scatto, e con la Madonnina:
+ *  il doppio della macchinina. */
+export const MOLTIPLICATORE_SCATTO = 1.55;
+export const MOLTIPLICATORE_MADONNINA = MOLTIPLICATORE_SCATTO * 2;
 
 /** Quanto dura il barcollamento dopo un urto e quanto rallenta. */
 export const DURATA_INCIAMPO = 0.55;
@@ -65,7 +82,7 @@ export function creaMondo(larghezza, altezza, rng = Math.random) {
   return {
     vista: creaVista(larghezza, altezza),
     tempo: 0,
-    stato: 'attesa', // 'attesa' | 'in-gioco' | 'pausa' | 'finita'
+    stato: 'attesa', // 'attesa' | 'in-gioco' | 'apparizione' | 'pausa' | 'finita'
     causaFine: null, // 'buca' | 'monopattino' | 'lampione'
     tempoInizio: 0,
     tempoFine: null,
@@ -88,8 +105,15 @@ export function creaMondo(larghezza, altezza, rng = Math.random) {
     scudo: false,
     scattoFinoA: 0,
     calamitaFinoA: 0,
+    madonninaFinoA: 0,
     inciampoFinoA: 0,
     invulnerabileFinoA: 0,
+
+    /** Secondi che restano all'apparizione della Madonnina, e da quanto e'
+     *  cominciata. Contati a parte perche' durante l'apparizione l'orologio
+     *  del mondo e' fermo. */
+    apparizione: 0,
+    tempoApparizione: 0,
 
     /** Ultimo fatto degno di una scritta a schermo: { testo, tempo }. */
     avviso: null,
@@ -102,6 +126,20 @@ export function scattoAttivo(mondo) {
 
 export function calamitaAttiva(mondo) {
   return mondo.tempo < mondo.calamitaFinoA;
+}
+
+export function madonninaAttiva(mondo) {
+  return mondo.tempo < mondo.madonninaFinoA;
+}
+
+export function rimastoMadonnina(mondo) {
+  return Math.max(0, mondo.madonninaFinoA - mondo.tempo);
+}
+
+/** Vero quando niente puo' fare male: lo scatto travolge, la Madonnina di
+ *  piu'. E' l'unica cosa che i due bonus hanno in comune. */
+export function invulnerabile(mondo) {
+  return scattoAttivo(mondo) || madonninaAttiva(mondo);
 }
 
 /** Secondi che restano al bonus, zero se non e' attivo. */
@@ -119,7 +157,8 @@ export function velocitaCorsa(mondo) {
   if (mondo.stato !== 'in-gioco') return VELOCITA_ATTESA;
   const corsa = mondo.tempo - mondo.tempoInizio;
   let velocita = Math.min(VELOCITA_MASSIMA, VELOCITA_INIZIALE + ACCELERAZIONE * corsa);
-  if (scattoAttivo(mondo)) velocita *= MOLTIPLICATORE_SCATTO;
+  if (madonninaAttiva(mondo)) velocita *= MOLTIPLICATORE_MADONNINA;
+  else if (scattoAttivo(mondo)) velocita *= MOLTIPLICATORE_SCATTO;
   if (mondo.tempo < mondo.inciampoFinoA) velocita *= RALLENTAMENTO_INCIAMPO;
   return velocita;
 }
@@ -138,8 +177,11 @@ export function avviaPartita(mondo, rng = Math.random) {
   mondo.scudo = false;
   mondo.scattoFinoA = 0;
   mondo.calamitaFinoA = 0;
+  mondo.madonninaFinoA = 0;
   mondo.inciampoFinoA = 0;
   mondo.invulnerabileFinoA = 0;
+  mondo.apparizione = 0;
+  mondo.tempoApparizione = 0;
   mondo.avviso = null;
   mondo.corridore = creaCorridore();
   mondo.percorso = creaPercorso(rng);
@@ -197,6 +239,20 @@ export function avanzaMondo(mondo, dt, rng = Math.random) {
   if (mondo.stato === 'pausa') return mondo;
 
   const passo = Math.min(Math.max(dt, 0), DT_MASSIMO);
+
+  // L'apparizione della Madonnina: il mondo sta fermo, e a scorrere e' solo il
+  // suo cronometro. I dieci secondi di potere partono quando finisce, non
+  // quando la si raccoglie, altrimenti due se ne andrebbero nell'apparizione.
+  if (mondo.stato === 'apparizione') {
+    mondo.apparizione -= passo;
+    mondo.tempoApparizione += passo;
+    if (mondo.apparizione <= 0) {
+      mondo.apparizione = 0;
+      mondo.stato = 'in-gioco';
+      mondo.madonninaFinoA = mondo.tempo + DURATA_MADONNINA;
+    }
+    return mondo;
+  }
   mondo.tempo += passo;
   mondo.velocita = velocitaCorsa(mondo);
   mondo.scorrimento += mondo.velocita * passo;
@@ -219,11 +275,7 @@ export function avanzaMondo(mondo, dt, rng = Math.random) {
   risolviRaccolte(mondo, passo);
   ripulisci(mondo.percorso, mondo.distanza);
 
-  avanzaInseguitori(mondo.inseguitori, passo, {
-    scatto: scattoAttivo(mondo),
-    velocita: mondo.velocita,
-  });
-  if (hannoPreso(mondo.inseguitori)) terminaPartita(mondo, mondo.causaFine || 'raggiunto');
+  avanzaInseguitori(mondo.inseguitori, passo, { velocita: mondo.velocita });
 
   mondo.punteggio = Math.floor(mondo.distanza) + mondo.monete * PUNTI_PER_MONETA;
   return mondo;
@@ -238,8 +290,9 @@ function risolviOstacoli(mondo) {
     if (!prendeIlCorridore(ostacolo, mondo.corridore, zRelativo)) continue;
 
     ostacolo.colpito = true;
-    if (scattoAttivo(mondo)) {
-      // Lo scatto passa attraverso: l'ostacolo si sfascia e non costa nulla.
+    if (invulnerabile(mondo)) {
+      // Scatto e Madonnina passano attraverso: l'ostacolo si sfascia e non
+      // costa nulla.
       ostacolo.travolto = true;
       continue;
     }
@@ -250,6 +303,7 @@ function risolviOstacoli(mondo) {
 /** Un errore. Ritorna true se e' costato davvero terreno. */
 export function subisciErrore(mondo, causa) {
   if (mondo.tempo < mondo.invulnerabileFinoA) return false;
+  if (invulnerabile(mondo)) return false;
 
   if (mondo.scudo) {
     mondo.scudo = false;
@@ -265,7 +319,14 @@ export function subisciErrore(mondo, causa) {
   mondo.errori += 1;
   mondo.causaFine = causa; // se questo e' l'ultimo errore, e' cosi' che e' finita
 
-  if (hannoPreso(mondo.inseguitori)) terminaPartita(mondo, causa);
+  // Il terzo errore chiude la partita, sempre. Il controllo sul distacco
+  // dovrebbe bastare da solo — tre penalita' fanno esattamente il vantaggio di
+  // partenza — ma il conto degli errori e' quello che il giocatore ha in
+  // testa, e vince lui.
+  if (mondo.errori >= ERRORI_PER_PERDERE || hannoPreso(mondo.inseguitori)) {
+    mondo.inseguitori.distacco = 0;
+    terminaPartita(mondo, causa);
+  }
   return true;
 }
 
@@ -304,13 +365,21 @@ function prendiRaccolta(mondo, raccolta) {
   }
   if (raccolta.tipo === SCATTO) {
     mondo.scattoFinoA = mondo.tempo + DURATA_SCATTO;
-    allontana(mondo.inseguitori, REGALO_SCATTO);
-    mondo.avviso = { testo: 'scatto', tempo: mondo.tempo };
+    mondo.avviso = { testo: GRIDO_SCATTO, tempo: mondo.tempo };
     return;
   }
   if (raccolta.tipo === CALAMITA) {
     mondo.calamitaFinoA = mondo.tempo + DURATA_CALAMITA;
     mondo.avviso = { testo: GRIDO_CALAMITA, tempo: mondo.tempo };
+    return;
+  }
+  if (raccolta.tipo === MADONNINA) {
+    // Il mondo si ferma e la Madonnina appare. Il potere parte dopo, quando
+    // l'apparizione finisce: lo fa `avanzaMondo`.
+    mondo.stato = 'apparizione';
+    mondo.apparizione = DURATA_APPARIZIONE;
+    mondo.tempoApparizione = 0;
+    mondo.avviso = null;
   }
 }
 

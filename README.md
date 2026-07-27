@@ -17,11 +17,15 @@ funzionamento senza rete e schermo che non si spegne mentre giochi.
 
 Il telefono si tiene **in verticale**. Si comanda scorrendo il dito:
 
-| Passata | Cosa fa | Ostacolo che serve a evitare |
+| Passata | Cosa fa | Ostacoli che serve a passare |
 | --- | --- | --- |
-| a lato | cambia corsia | il maranza sul monopattino |
-| in alto | salta | la buca (larga una, due o tre corsie) |
-| in basso | ti abbassi | il lampione caduto di traverso |
+| a lato | cambia corsia | il maranza sul monopattino, e **l'Arco della Pace**, che si passa solo dal fornice centrale: i due piloni chiudono le corsie laterali |
+| in alto | salta | la buca (una, due o tre corsie) e l'**aiuola del sindaco**, cassone di cemento con l'erba alta che non taglia nessuno (una o due corsie) |
+| in basso | ti abbassi | il **ponticello** di ghisa che scavalca la strada |
+
+Quel che non copre tutte e tre le corsie si puo' sempre anche scansare di lato. Il
+gesto proprio dell'ostacolo e' quello che funziona **sempre**, anche quando
+l'ostacolo prende tutta la strada.
 
 Il **pulsante di pausa** sta in alto a destra: ferma tutto, orologio compreso, e i
 secondi che restano ai bonus non scorrono. Si riprende toccando il pulsante, o
@@ -31,23 +35,25 @@ secondo piano: chi risponde a una chiamata non deve tornare e trovarsi morto.
 Da tastiera, per provarlo sul computer: frecce o `WASD`, spazio per saltare,
 `Invio` per cominciare, `P` o `Esc` per la pausa, `F` per il contatore di fotogrammi.
 
-Ogni ostacolo si evita **in un modo solo**, sempre lo stesso: il monopattino e' alto,
-saltargli sopra non funziona; abbassarsi dentro una buca non serve a niente. Due
-ostacoli non capitano mai nello stesso punto, e fra uno e l'altro c'e' sempre lo
-spazio per rimettersi in piedi.
+Il monopattino e' alto, saltargli sopra non funziona; abbassarsi dentro una buca non
+serve a niente. Due ostacoli non capitano mai nello stesso punto, e fra uno e l'altro
+c'e' sempre lo spazio per rimettersi in piedi.
 
-### Il distacco e' l'unica vita che hai
+### Tre errori e ti prendono
 
-Non ci sono tre vite: c'e' un numero solo, il **distacco** in metri fra te e i
-maranza, che si vede nella barra in alto a destra e, soprattutto, si vede in fondo
-allo schermo — piu' si avvicinano, piu' diventano grandi.
+Non ci sono tre vite con tre cuoricini: c'e' un numero solo, il **distacco** in metri
+fra te e i maranza, e quel numero ha tre tacche. Si vede nella barra in alto a destra
+e, soprattutto, si vede in fondo allo schermo — piu' si avvicinano, piu' diventano
+grandi.
 
 - si parte con 16 metri di vantaggio;
-- ogni errore ne costa 5,5 e ti fa barcollare;
-- correndo pulito se ne riguadagnano 0,62 al secondo, fino a un massimo di 16.
+- ogni errore ne costa un terzo esatto, e ti fa barcollare;
+- **il terreno perso non si riprende.**
 
-Quindi **tre errori ravvicinati bastano per farsi prendere**, ma nessuno dei tre e'
-definitivo se in mezzo si corre bene.
+Quindi al terzo errore sei a zero e ti prendono, e non c'e' corsa pulita che tenga.
+(Prima il distacco si riguadagnava correndo bene, e capitava di sbagliare cinque
+volte senza perdere: era troppo comodo, e il conto non tornava mai con quello che il
+giocatore aveva in testa.)
 
 ### Monete e bonus
 
@@ -58,8 +64,12 @@ momento giusto.
 | Bonus | Cosa fa | Come si vede |
 | --- | --- | --- |
 | scudo | si mangia un errore, poi si consuma | ti affianca un poliziotto, e sparisce quando lo scudo si consuma |
-| scatto | qualche secondo a tutta velocita', passando attraverso gli ostacoli e guadagnando terreno in fretta | sali su una macchinina rossa |
-| calamita | per qualche secondo le monete vengono a te anche dalle altre corsie | compare la scritta **oggi si fattura** |
+| scatto | qualche secondo a tutta velocita', passando attraverso gli ostacoli | sali su una macchinina rossa, e compare la scritta **car sharing** |
+| calamita | per qualche secondo le monete vengono a te anche dalle altre corsie | e' una carta di credito, e compare la scritta **oggi si fattura** |
+| **Madonnina** | dieci secondi al triplo della velocita' — il doppio della macchinina — e non ti tocca niente | il gioco si ferma due secondi, lei appare in mezzo ai raggi, poi si riparte con l'aureola |
+
+La Madonnina e' rara: una ogni ottocento metri buoni. E' la statua in cima alla guglia
+maggiore del Duomo, e per quei dieci secondi non ti prende nessuno.
 
 Il record e' salvato nel browser di questo telefono e non va da nessun'altra parte.
 
@@ -207,6 +217,16 @@ Qualche scelta che vale la pena conoscere prima di mettere le mani al codice:
   con un seme fisso: la strada dev'essere sempre la stessa strada, non un posto
   diverso a ogni partita. I monumenti — Galleria, Duomo, Torre Velasca, Bosco
   Verticale, Arco della Pace — stanno in punti stabiliti, non a caso.
+- **L'Arco della Pace e' un ostacolo, non piu' un monumento da guardare.** Il varco e'
+  il fornice centrale, e il fornice centrale e' **esattamente la corsia di mezzo**: i
+  due fornici laterali cadono sulla sede del tram e sulla fascia di sosta, fuori dalla
+  carreggiata, cosi' non promettono un passaggio che non c'e'. E' l'unico ostacolo con
+  le corsie non attaccate — chiude la prima e la terza — e per lui `corsieOstacolo`
+  legge un elenco esplicito invece di contare da `corsiaInizio`.
+- **L'apparizione della Madonnina ferma il mondo, non il programma.** Durante i due
+  secondi l'orologio del gioco sta fermo e a scorrere e' solo il cronometro
+  dell'apparizione: per questo i dieci secondi di potere partono quando l'apparizione
+  finisce, e non se ne perdono due per strada.
 - **Una buca ha dentro il suo vuoto.** La profondita' si ottiene ritagliando
   l'imboccatura e mettendoci dentro il fondo, che e' la stessa forma settanta
   centimetri piu' in basso e quindi proiettata piu' in giu'. Quel che avanza fra

@@ -15,14 +15,29 @@
 // possono farsi dare sempre lo stesso percorso.
 
 import { CORSIE, DISTANZA_VISIBILE } from './costanti.js';
-import { BUCA, creaBuca, creaMonopattino, creaLampione, corsieOstacolo } from './ostacoli.js';
+import {
+  BUCA,
+  AIUOLA,
+  creaBuca,
+  creaAiuola,
+  creaMonopattino,
+  creaPonticello,
+  creaArco,
+  corsieOstacolo,
+} from './ostacoli.js';
 
 export const MONETA = 'moneta';
 export const SCUDO = 'scudo';
 export const SCATTO = 'scatto';
 export const CALAMITA = 'calamita';
+export const MADONNINA = 'madonnina';
 
 export const BONUS = [SCUDO, SCATTO, CALAMITA];
+
+/** Ogni quanti metri, all'incirca, appare la Madonnina. E' rara di proposito:
+ *  dieci secondi di corsa indistruttibile a velocita' tripla non possono
+ *  capitare a ogni isolato. */
+const METRI_FRA_LE_MADONNINE = 820;
 
 /** Il primo ostacolo non arriva subito: i primi metri servono a capire che si
  *  sta correndo e che si puo' cambiare corsia. */
@@ -49,6 +64,7 @@ export function creaPercorso(rng) {
     raccolte: [],
     prossimoZ: PRIMO_OSTACOLO,
     prossimoBonusZ: PRIMO_OSTACOLO + 120 + (rng ? rng() * 80 : 40),
+    prossimaMadonninaZ: 380 + (rng ? rng() * 220 : 110),
   };
 }
 
@@ -99,13 +115,21 @@ function aggiungiPezzo(percorso, velocita, rng) {
 export function creaOstacoli(z, rng, difficolta) {
   const dado = rng();
 
-  if (dado < 0.4) {
+  if (dado < 0.3) {
     const quante = quanteCorsie(rng, difficolta, 0.26, 0.1);
     const inizio = Math.floor(rng() * (CORSIE - quante + 1));
     return [creaBuca(z, inizio, quante, 2.4 + rng() * 1.4 + difficolta * 0.9)];
   }
 
-  if (dado < 0.72) {
+  if (dado < 0.46) {
+    // Aiuola: una o due corsie, mai tutte e tre. Una fioriera larga quanto la
+    // strada sarebbe un muro, e un muro non si salta.
+    const quante = rng() < 0.35 + difficolta * 0.25 ? 2 : 1;
+    const inizio = Math.floor(rng() * (CORSIE - quante + 1));
+    return [creaAiuola(z, inizio, quante)];
+  }
+
+  if (dado < 0.7) {
     const corsia = Math.floor(rng() * CORSIE);
     // Due monopattini lasciano una corsia sola: la scelta diventa secca.
     const doppio = difficolta > 0.4 && rng() < 0.18 + difficolta * 0.22;
@@ -114,9 +138,13 @@ export function creaOstacoli(z, rng, difficolta) {
     return [creaMonopattino(z, corsia), creaMonopattino(z, altra)];
   }
 
+  // L'arco arriva di rado: e' il momento in cui la strada si stringe a una
+  // corsia sola, e capita ogni una decina di ostacoli.
+  if (dado > 0.93) return [creaArco(z)];
+
   const quante = quanteCorsie(rng, difficolta, 0.38, 0.22);
   const inizio = Math.floor(rng() * (CORSIE - quante + 1));
-  return [creaLampione(z, inizio, quante)];
+  return [creaPonticello(z, inizio, quante)];
 }
 
 /** Da una a tre corsie, con la larghezza che cresce insieme alla difficolta'. */
@@ -138,15 +166,22 @@ export function corsieLibere(gruppo) {
 function aggiungiRaccolte(percorso, gruppo, rng, difficolta) {
   const primo = gruppo[0];
 
+  if (primo.z > percorso.prossimaMadonninaZ) {
+    percorso.raccolte.push(bonusDopo(primo, gruppo, rng, MADONNINA));
+    percorso.prossimaMadonninaZ = primo.z + METRI_FRA_LE_MADONNINE + rng() * 260;
+    // la Madonnina non si divide la scena con nient'altro
+    return;
+  }
+
   if (primo.z > percorso.prossimoBonusZ) {
     percorso.raccolte.push(bonusDopo(primo, gruppo, rng));
     percorso.prossimoBonusZ = primo.z + METRI_FRA_I_BONUS + rng() * 140;
     return; // un bonus da solo si vede meglio che in mezzo alle monete
   }
 
-  // Sopra una buca le monete fanno un arco: seguono il salto, e prenderle
-  // tutte vuol dire aver saltato al momento giusto.
-  if (primo.tipo === BUCA && rng() < 0.55) {
+  // Sopra una buca o un'aiuola le monete fanno un arco: seguono il salto, e
+  // prenderle tutte vuol dire aver saltato al momento giusto.
+  if ((primo.tipo === BUCA || primo.tipo === AIUOLA) && rng() < 0.55) {
     percorso.raccolte.push(...arcoDiMonete(primo));
     return;
   }
@@ -188,8 +223,8 @@ function arcoDiMonete(buca) {
   return monete;
 }
 
-function bonusDopo(ostacolo, gruppo, rng) {
-  const tipo = BONUS[Math.floor(rng() * BONUS.length)];
+function bonusDopo(ostacolo, gruppo, rng, forzato = null) {
+  const tipo = forzato || BONUS[Math.floor(rng() * BONUS.length)];
   const corsia = corsiaLiberaOQualsiasi(gruppo, rng);
   return creaRaccolta(tipo, ostacolo.z + ostacolo.profondita / 2 + 9, corsia, 1.15);
 }

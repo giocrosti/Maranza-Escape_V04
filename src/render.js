@@ -23,8 +23,8 @@ import {
   DISTANZA_CAMERA,
 } from './proiezione.js';
 import { SEMI_STRADA, LARGHEZZA_CORSIA, DISTANZA_VISIBILE, ALTEZZA_OMINO } from './costanti.js';
-import { BUCA, MONOPATTINO, ALTEZZA_LAMPIONE, corsieOstacolo } from './ostacoli.js';
-import { MONETA, SCUDO, SCATTO, CALAMITA } from './percorso.js';
+import { BUCA, AIUOLA, MONOPATTINO, PONTICELLO, ARCO, ALTEZZA_PONTICELLO, corsieOstacolo } from './ostacoli.js';
+import { MONETA, SCUDO, SCATTO, CALAMITA, MADONNINA } from './percorso.js';
 import { abbassato } from './corridore.js';
 import { minaccia, DISTACCO_INIZIALE } from './inseguitori.js';
 import { areaPausa } from './pausa.js';
@@ -43,6 +43,7 @@ import {
   conFigura,
   disegnaFigura,
   disegnaMacchinina,
+  disegnaMadonnina,
   disegnaMaranzaDiFronte,
   disegnaMonopattinoDiLato,
   disegnaMonopattinoDiSpalle,
@@ -65,11 +66,16 @@ import {
 import {
   scattoAttivo,
   calamitaAttiva,
+  madonninaAttiva,
   rimastoScatto,
   rimastoCalamita,
+  rimastoMadonnina,
   DURATA_SCATTO,
   DURATA_CALAMITA,
+  DURATA_MADONNINA,
+  DURATA_APPARIZIONE,
   PUNTI_PER_MONETA,
+  GRIDO_SCONFITTA,
 } from './mondo.js';
 
 /** La citta' si genera una volta sola: e' sempre la stessa strada. */
@@ -111,9 +117,10 @@ const COLORI = {
   cavo: 'rgba(40,42,48,0.55)',
   auto: ['#8d3b34', '#2f4a6b', '#6d6f74', '#b0b3b8', '#39463c', '#7a6a52'],
   vetroAuto: '#2f3740',
-  tramCorpo: '#e0762f',
-  tramFascia: '#f2ece2',
-  tramVetro: '#3a444e',
+  tramCorpo: '#e0862c',
+  tramFascia: '#f0e7d2',
+  tramVetro: '#3f4a54',
+  tramLegno: '#5b3f2a',
   omino: '#f5f7fa',
   ominoOmbra: '#c2c9d3',
   maranza: '#24262c',
@@ -131,8 +138,16 @@ const COLORI = {
   monetaScura: '#b58a1f',
   scudo: '#57b0e6',
   scatto: '#f4813c',
-  calamita: '#d9534f',
+  calamita: '#4f7ec4',
+  madonnina: '#e6c150',
   testo: '#f7f8fa',
+};
+
+const COLORI_BONUS = {
+  scudo: COLORI.scudo,
+  scatto: COLORI.scatto,
+  calamita: COLORI.calamita,
+  madonnina: COLORI.madonnina,
 };
 
 export function disegnaMondo(ctx, mondo, interfaccia = {}) {
@@ -157,11 +172,14 @@ export function disegnaMondo(ctx, mondo, interfaccia = {}) {
   // Il pannello serve solo mentre si gioca: sulle schermate i numeri ci sono
   // gia', piu' grandi, e ripeterli in piccolo e' solo rumore. Il pulsante
   // invece resta anche in pausa, perche' e' quello che fa riprendere.
-  if (mondo.stato === 'in-gioco') disegnaHud(ctx, mondo, interfaccia);
+  if (mondo.stato === 'in-gioco' || mondo.stato === 'apparizione') {
+    disegnaHud(ctx, mondo, interfaccia);
+  }
   if (mondo.stato === 'in-gioco' || mondo.stato === 'pausa') {
     disegnaPulsantePausa(ctx, mondo, interfaccia);
   }
 
+  if (mondo.stato === 'apparizione') disegnaApparizione(ctx, mondo);
   if (mondo.stato === 'attesa') disegnaSchermataIniziale(ctx, mondo, interfaccia);
   if (mondo.stato === 'pausa') disegnaSchermataPausa(ctx, mondo, interfaccia);
   if (mondo.stato === 'finita') disegnaSchermataFine(ctx, mondo, interfaccia);
@@ -375,11 +393,6 @@ function disegnaCitta(ctx, vista, scorrimento) {
     const z = zRelativo(edificio.z, scorrimento);
     if (z > DISTANZA_VISIBILE || z + edificio.profondita < CODA_ARREDI) continue;
     palazzi.push({ z, disegna: () => disegnaEdificio(ctx, vista, edificio, z) });
-  }
-
-  const arco = zRelativo(CITTA.arco.z, scorrimento);
-  if (arco < DISTANZA_VISIBILE && arco > CODA_ARREDI - 8) {
-    palazzi.push({ z: arco, disegna: () => disegnaArco(ctx, vista, CITTA.arco, arco, BORDO_MARCIAPIEDE) });
   }
 
   palazzi.sort((a, b) => b.z - a.z);
@@ -695,28 +708,63 @@ function disegnaTram(ctx, vista, z) {
     yBasso: 0.35,
     yAlto: 3.3,
     lato: COLORI.tramCorpo,
-    tetto: '#c9c3ba',
-    fronte: '#c9601f',
+    tetto: '#d9cfba',
+    fronte: COLORI.tramCorpo,
     coda: CODA_ARREDI,
   });
 
+  // La livrea del 1500, quello vero: arancione sotto, panna dalla cintura dei
+  // finestrini in su, e i telai in legno scuro. E' la combinazione a farlo
+  // riconoscere, non la forma della cassa.
+  const filo = dentro - LATO_TRAM * 0.02;
   ctx.fillStyle = COLORI.tramFascia;
-  parete(ctx, vista, dentro - LATO_TRAM * 0.02, 2.55, 2.95, zVicino, zLontano);
-  ctx.fillStyle = COLORI.tramVetro;
-  for (let i = 0; i < 6; i += 1) {
-    const passo = lunghezza / 6;
-    parete(
-      ctx,
-      vista,
-      dentro - LATO_TRAM * 0.03,
-      1.5,
-      2.5,
-      zVicino + i * passo + passo * 0.18,
-      zVicino + i * passo + passo * 0.82,
-    );
+  parete(ctx, vista, filo, 2.42, 3.3, zVicino, zLontano);
+  ctx.fillStyle = COLORI.tramLegno;
+  parete(ctx, vista, filo, 2.32, 2.46, zVicino, zLontano);
+  // il profilo panna anche in basso, sotto i finestrini
+  ctx.fillStyle = COLORI.tramFascia;
+  parete(ctx, vista, filo, 0.42, 0.56, zVicino, zLontano);
+
+  // finestrini alti, coi montanti in legno fra l'uno e l'altro
+  const quanti = 7;
+  const passo = lunghezza / quanti;
+  for (let i = 0; i < quanti; i += 1) {
+    const da = zVicino + i * passo + passo * 0.16;
+    const a = zVicino + (i + 1) * passo - passo * 0.16;
+    // le due porte, piu' scure e piu' alte
+    const porta = i === 1 || i === 5;
+    ctx.fillStyle = COLORI.tramLegno;
+    parete(ctx, vista, dentro - LATO_TRAM * 0.03, porta ? 0.62 : 1.28, 2.46, da - 0.12, a + 0.12);
+    ctx.fillStyle = COLORI.tramVetro;
+    parete(ctx, vista, dentro - LATO_TRAM * 0.04, porta ? 0.95 : 1.42, 2.34, da, a);
   }
 
-  linea(ctx, vista, [(dentro + fuori) / 2, 3.3, z + 3], [(dentro + fuori) / 2, 5.4, z + 1.5], '#3a3d43', 0.09);
+  // il numero di vettura sulla fiancata
+  const pNumero = proietta(vista, dentro, 1.0, z + lunghezza * 0.34);
+  if (pNumero.scala > 6) {
+    ctx.fillStyle = COLORI.tramFascia;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `700 ${0.5 * pNumero.scala}px system-ui, -apple-system, sans-serif`;
+    ctx.fillText('1623', pNumero.x, pNumero.y);
+  }
+
+  // il faro tondo e il respingente sulla testa, quando la si vede
+  if (zVicino > 0.4) {
+    const centro = (dentro + fuori) / 2;
+    const faro = proietta(vista, centro, 1.5, zVicino);
+    ctx.fillStyle = '#f6efd8';
+    ctx.beginPath();
+    ctx.arc(faro.x, faro.y, 0.3 * faro.scala, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = COLORI.tramLegno;
+    ctx.beginPath();
+    ctx.arc(faro.x, faro.y, 0.36 * faro.scala, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // l'asta del trolley verso il filo
+  linea(ctx, vista, [(dentro + fuori) / 2, 3.3, z + 3], [(dentro + fuori) / 2, 5.5, z - 1], COLORI.tramLegno, 0.07);
 }
 
 /** I fili della linea aerea, tirati lungo la sede del tram. */
@@ -758,8 +806,12 @@ function disegnaPercorso(ctx, mondo) {
 
 function disegnaOstacolo(ctx, vista, ostacolo, z, mondo) {
   if (ostacolo.tipo === BUCA) return disegnaBuca(ctx, vista, ostacolo, z);
+  if (ostacolo.tipo === AIUOLA) return disegnaAiuola(ctx, vista, ostacolo, z);
   if (ostacolo.tipo === MONOPATTINO) return disegnaMonopattinoConMaranza(ctx, vista, ostacolo, z, mondo);
-  return disegnaLampioneCaduto(ctx, vista, ostacolo, z);
+  if (ostacolo.tipo === ARCO) {
+    return disegnaArco(ctx, vista, z, 22, BORDO_MARCIAPIEDE, LARGHEZZA_CORSIA / 2);
+  }
+  return disegnaPonticello(ctx, vista, ostacolo, z);
 }
 
 function estremiCorsie(ostacolo) {
@@ -848,54 +900,133 @@ function disegnaBuca(ctx, vista, buca, z) {
   ctx.stroke();
 }
 
-function disegnaLampioneCaduto(ctx, vista, lampione, z) {
-  const { sinistra, destra } = estremiCorsie(lampione);
-  const y = ALTEZZA_LAMPIONE;
+/** Un'aiuola del sindaco: cassone di cemento, terra dentro e l'erba alta che
+ *  non taglia nessuno. Si scavalca. */
+function disegnaAiuola(ctx, vista, aiuola, z) {
+  const { sinistra, destra } = estremiCorsie(aiuola);
+  const zVicino = z - aiuola.profondita / 2;
+  const zLontano = z + aiuola.profondita / 2;
+  const bordo = 0.42;
 
-  // Ombra tenue e stretta: un'ombra marcata, vista da vicino, si legge come
-  // una buca, e in un gioco dove le buche si saltano e' un inganno.
-  ctx.fillStyle = 'rgba(0,0,0,0.16)';
-  fascia(ctx, vista, sinistra, destra, z - 0.22, z + 0.22, 0.015);
+  // il cassone: fianco verso di noi, poi il bordo superiore
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  fascia(ctx, vista, sinistra - 0.1, destra + 0.1, zVicino, zLontano + 0.2, 0.008);
 
-  const a = proietta(vista, sinistra - 0.3, y, z);
-  const b = proietta(vista, destra + 0.3, y, z);
-  const spessore = Math.max(2, 0.26 * a.scala);
+  ctx.fillStyle = '#8d8579';
+  testa(ctx, vista, zVicino, sinistra, destra, 0, bordo);
+  ctx.fillStyle = '#9d968a';
+  fascia(ctx, vista, sinistra, destra, zVicino, zLontano, bordo);
+  // la terra dentro, un filo piu' bassa del bordo
+  ctx.fillStyle = '#4a3d31';
+  fascia(ctx, vista, sinistra + 0.12, destra - 0.12, zVicino + 0.12, zLontano - 0.12, bordo - 0.06);
 
-  ctx.strokeStyle = '#5c5f66';
-  ctx.lineWidth = spessore;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(a.x, a.y);
-  ctx.lineTo(b.x, b.y);
-  ctx.stroke();
-
-  ctx.strokeStyle = '#e8c545';
-  ctx.lineWidth = spessore * 0.75;
-  const passo = (destra + 0.3 - (sinistra - 0.3)) / 8;
-  for (let i = 0; i < 8; i += 2) {
-    const da = proietta(vista, sinistra - 0.3 + i * passo, y, z);
-    const a2 = proietta(vista, sinistra - 0.3 + (i + 1) * passo, y, z);
+  // l'erba: ciuffi alti e disordinati, sempre gli stessi per la stessa aiuola
+  let stato = (aiuola.seme + 1) >>> 0;
+  const caso = () => {
+    stato = (Math.imul(stato, 1664525) + 1013904223) >>> 0;
+    return stato / 4294967296;
+  };
+  const quanti = Math.round((destra - sinistra) * 14);
+  for (let i = 0; i < quanti; i += 1) {
+    const x = sinistra + 0.15 + caso() * (destra - sinistra - 0.3);
+    const zCiuffo = zVicino + 0.15 + caso() * (aiuola.profondita - 0.3);
+    const alto = bordo + 0.3 + caso() * 0.55;
+    const piega = (caso() - 0.5) * 0.5;
+    const base = proietta(vista, x, bordo - 0.05, zCiuffo);
+    const cima = proietta(vista, x + piega, alto, zCiuffo);
+    ctx.strokeStyle = i % 3 === 0 ? '#6f8f4a' : i % 3 === 1 ? '#57783c' : '#7fa055';
+    ctx.lineWidth = Math.max(1, 0.045 * base.scala);
+    ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(da.x, da.y);
-    ctx.lineTo(a2.x, a2.y);
+    ctx.moveTo(base.x, base.y);
+    ctx.quadraticCurveTo((base.x + cima.x) / 2 - piega * base.scala * 0.3, (base.y + cima.y) / 2, cima.x, cima.y);
+    ctx.stroke();
+  }
+}
+
+/** Il ponticello di ghisa: due spalle in pietra, l'arcata ribassata, la
+ *  ringhiera a volute e le statuine sui pilastrini. Ci si passa **sotto**, e
+ *  l'intradosso sta a ALTEZZA_PONTICELLO: e' quella la quota che decide. */
+function disegnaPonticello(ctx, vista, ponticello, z) {
+  const { sinistra, destra } = estremiCorsie(ponticello);
+  const y = ALTEZZA_PONTICELLO;
+  const spalla = 0.55;
+  const zVicino = z - ponticello.profondita / 2;
+  const zLontano = z + ponticello.profondita / 2;
+  const daX = sinistra - 0.35;
+  const aX = destra + 0.35;
+
+  // ombra sotto l'arcata, tenue: marcata si leggerebbe come una buca
+  ctx.fillStyle = 'rgba(0,0,0,0.16)';
+  fascia(ctx, vista, daX, aX, zVicino, zLontano, 0.015);
+
+  // le due spalle in pietra, che scendono a terra fuori dal varco
+  for (const x of [daX - spalla, aX]) {
+    ctx.fillStyle = '#9a9287';
+    testa(ctx, vista, zVicino, x, x + spalla, 0, y + 1.5);
+    ctx.fillStyle = '#877f74';
+    parete(ctx, vista, x + (x < 0 ? spalla : 0), 0, y + 1.5, zVicino, zLontano);
+  }
+
+  // l'impalcato: l'arcata ribassata sotto e la fascia piena sopra
+  const arcata = [];
+  for (let i = 0; i <= 14; i += 1) {
+    const t = i / 14;
+    arcata.push([daX + (aX - daX) * t, y + Math.sin(t * Math.PI) * 0.3]);
+  }
+  arcata.push([aX, y + 1.05], [daX, y + 1.05]);
+  ctx.fillStyle = '#8f9299';
+  ctx.beginPath();
+  arcata.forEach(([x, altezza], i) => {
+    const p = proietta(vista, x, altezza, zVicino);
+    if (i === 0) ctx.moveTo(p.x, p.y);
+    else ctx.lineTo(p.x, p.y);
+  });
+  ctx.closePath();
+  ctx.fill();
+
+  // il piano del ponte, visto di taglio
+  ctx.fillStyle = '#a8a49b';
+  testa(ctx, vista, zVicino, daX, aX, y + 1.05, y + 1.22);
+  ctx.fillStyle = '#8b877e';
+  fascia(ctx, vista, daX, aX, zVicino, zLontano, y + 1.22);
+
+  // la ringhiera a volute
+  const p = proietta(vista, 0, y, zVicino);
+  ctx.strokeStyle = '#4f545c';
+  ctx.lineWidth = Math.max(1, 0.05 * p.scala);
+  const alto = proietta(vista, 0, y + 1.85, zVicino);
+  ctx.beginPath();
+  ctx.moveTo(proietta(vista, daX, y + 1.85, zVicino).x, alto.y);
+  ctx.lineTo(proietta(vista, aX, y + 1.85, zVicino).x, alto.y);
+  ctx.stroke();
+  const passo = (aX - daX) / 12;
+  for (let i = 0; i <= 12; i += 1) {
+    const x = daX + i * passo;
+    const basso = proietta(vista, x, y + 1.22, zVicino);
+    const cima = proietta(vista, x, y + 1.85, zVicino);
+    ctx.beginPath();
+    ctx.moveTo(basso.x, basso.y);
+    ctx.lineTo(cima.x, cima.y);
+    ctx.stroke();
+    if (i % 2 === 0) continue;
+    // le volute fra un montante e l'altro
+    const mezzo = proietta(vista, x, y + 1.54, zVicino);
+    ctx.beginPath();
+    ctx.arc(mezzo.x, mezzo.y, 0.28 * mezzo.scala, 0, Math.PI * 2);
     ctx.stroke();
   }
 
-  const capo = lampione.versoDestra ? proietta(vista, destra + 0.3, y, z) : a;
-  ctx.fillStyle = '#c9ccd1';
-  ctx.beginPath();
-  ctx.ellipse(capo.x, capo.y, 0.5 * capo.scala, 0.24 * capo.scala, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.strokeStyle = '#4e5158';
-  ctx.lineWidth = Math.max(1, 0.12 * a.scala);
-  for (const x of [sinistra - 0.3, destra + 0.3]) {
-    const alto = proietta(vista, x, y, z);
-    const basso = proietta(vista, x, 0, z);
+  // i pilastrini con le statuine, uno per spalla
+  for (const x of [daX - spalla / 2, aX + spalla / 2]) {
+    const base = proietta(vista, x, y + 1.22, zVicino);
+    const dado = proietta(vista, x, y + 2.05, zVicino);
+    ctx.fillStyle = '#b0aa9f';
+    ctx.fillRect(base.x - 0.3 * base.scala, dado.y, 0.6 * base.scala, base.y - dado.y);
+    ctx.fillStyle = ponticello.versoDestra ? '#8d8677' : '#948d7e';
     ctx.beginPath();
-    ctx.moveTo(alto.x, alto.y);
-    ctx.lineTo(basso.x, basso.y);
-    ctx.stroke();
+    ctx.ellipse(dado.x, dado.y - 0.22 * dado.scala, 0.22 * dado.scala, 0.32 * dado.scala, 0, 0, Math.PI * 2);
+    ctx.fill();
   }
 }
 
@@ -944,18 +1075,31 @@ function disegnaRaccolta(ctx, vista, raccolta, z, tempo) {
   }
 
   const raggio = 0.45 * p.scala;
-  const colore =
-    raccolta.tipo === SCUDO ? COLORI.scudo : raccolta.tipo === SCATTO ? COLORI.scatto : COLORI.calamita;
+  const colore = COLORI_BONUS[raccolta.tipo] || COLORI.scudo;
 
-  const alone = ctx.createRadialGradient(p.x, p.y, raggio * 0.2, p.x, p.y, raggio * 2);
+  // l'alone, che vale per tutti: un bonus si deve vedere da lontano
+  const alone = ctx.createRadialGradient(p.x, p.y, raggio * 0.2, p.x, p.y, raggio * 2.2);
   alone.addColorStop(0, colore);
   alone.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.globalAlpha = 0.45 + 0.25 * Math.sin(tempo * 5);
   ctx.fillStyle = alone;
   ctx.beginPath();
-  ctx.arc(p.x, p.y, raggio * 2, 0, Math.PI * 2);
+  ctx.arc(p.x, p.y, raggio * 2.2, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
+
+  // La calamita non e' un disco: e' una carta di credito, che gira su se'
+  // stessa come le monete.
+  if (raccolta.tipo === CALAMITA) {
+    const giro = Math.abs(Math.cos(tempo * 2.4 + raccolta.z));
+    disegnaCartaDiCredito(ctx, p.x, p.y, raggio * 1.5 * Math.max(0.12, giro), raggio * 0.95);
+    return;
+  }
+
+  if (raccolta.tipo === MADONNINA) {
+    conFigura(ctx, p.x, p.y + raggio, raggio * 2.1, () => disegnaMadonnina(ctx, { tempo }));
+    return;
+  }
 
   ctx.fillStyle = '#fbfcfd';
   ctx.beginPath();
@@ -968,6 +1112,42 @@ function disegnaRaccolta(ctx, vista, raccolta, z, tempo) {
 
   ctx.fillStyle = '#fbfcfd';
   disegnaSimboloBonus(ctx, raccolta.tipo, p.x, p.y, raggio * 0.5);
+}
+
+/** Una carta di credito: banda magnetica, chip dorato e il numero in rilievo.
+ *  `mezzaLarghezza` si stringe quando la carta e' di taglio, cosi' gira. */
+function disegnaCartaDiCredito(ctx, cx, cy, mezzaLarghezza, mezzaAltezza) {
+  const raggio = Math.min(mezzaAltezza * 0.24, mezzaLarghezza);
+  ctx.fillStyle = '#2f3d55';
+  riquadroTondo(ctx, cx - mezzaLarghezza, cy - mezzaAltezza, mezzaLarghezza * 2, mezzaAltezza * 2, raggio);
+  ctx.fill();
+
+  if (mezzaLarghezza < mezzaAltezza * 0.35) return; // di taglio non si vede altro
+
+  // banda magnetica
+  ctx.fillStyle = '#16202f';
+  ctx.fillRect(cx - mezzaLarghezza, cy - mezzaAltezza * 0.62, mezzaLarghezza * 2, mezzaAltezza * 0.36);
+  // chip
+  ctx.fillStyle = '#e0bb52';
+  riquadroTondo(
+    ctx,
+    cx - mezzaLarghezza * 0.62,
+    cy - mezzaAltezza * 0.05,
+    mezzaLarghezza * 0.42,
+    mezzaAltezza * 0.5,
+    mezzaAltezza * 0.08,
+  );
+  ctx.fill();
+  // il numero, tre gruppi
+  ctx.fillStyle = 'rgba(226,233,242,0.75)';
+  for (let i = 0; i < 3; i += 1) {
+    ctx.fillRect(
+      cx - mezzaLarghezza * 0.62 + i * mezzaLarghezza * 0.44,
+      cy + mezzaAltezza * 0.62,
+      mezzaLarghezza * 0.32,
+      mezzaAltezza * 0.14,
+    );
+  }
 }
 
 function disegnaSimboloBonus(ctx, tipo, cx, cy, r) {
@@ -995,17 +1175,28 @@ function disegnaSimboloBonus(ctx, tipo, cx, cy, r) {
     ctx.fill();
     return;
   }
-  ctx.lineWidth = r * 0.55;
-  ctx.strokeStyle = ctx.fillStyle;
-  ctx.beginPath();
-  ctx.arc(cx, cy + r * 0.1, r * 0.62, Math.PI, 0);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(cx - r * 0.62, cy + r * 0.1);
-  ctx.lineTo(cx - r * 0.62, cy + r * 0.75);
-  ctx.moveTo(cx + r * 0.62, cy + r * 0.1);
-  ctx.lineTo(cx + r * 0.62, cy + r * 0.75);
-  ctx.stroke();
+  if (tipo === MADONNINA) {
+    // una stella della corona
+    ctx.beginPath();
+    for (let i = 0; i < 10; i += 1) {
+      const angolo = (Math.PI * i) / 5 - Math.PI / 2;
+      const raggio = i % 2 === 0 ? r : r * 0.42;
+      const x = cx + Math.cos(angolo) * raggio;
+      const y = cy + Math.sin(angolo) * raggio;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+    return;
+  }
+  // calamita: la carta di credito in miniatura
+  riquadroTondo(ctx, cx - r * 0.95, cy - r * 0.62, r * 1.9, r * 1.24, r * 0.2);
+  ctx.fill();
+  const tinta = ctx.fillStyle;
+  ctx.fillStyle = 'rgba(20,26,38,0.65)';
+  ctx.fillRect(cx - r * 0.95, cy - r * 0.34, r * 1.9, r * 0.3);
+  ctx.fillStyle = tinta;
 }
 
 // --- personaggi ------------------------------------------------------------
@@ -1016,7 +1207,9 @@ function disegnaCorridore(ctx, mondo) {
   const x = xDiCorsia(corridore.posizione);
   const suolo = proietta(vista, x, 0, 0);
   const p = proietta(vista, x, corridore.y, 0);
-  const inMacchina = scattoAttivo(mondo);
+  // La Madonnina batte tutto: si corre, non si guida, e si e' d'oro.
+  const conMadonnina = madonninaAttiva(mondo);
+  const inMacchina = !conMadonnina && scattoAttivo(mondo);
 
   // Lo scudo non e' una bolla: e' un poliziotto che ti corre a fianco. Si
   // disegna prima dell'omino, cosi' resta l'omino la figura in primo piano.
@@ -1039,8 +1232,11 @@ function disegnaCorridore(ctx, mondo) {
   const posa = abbassato(corridore) ? 'scivolata' : corridore.inAria ? 'salto' : 'corsa';
   const lampeggia = mondo.tempo < mondo.invulnerabileFinoA && Math.floor(mondo.tempo * 12) % 2 === 0;
 
-  // la scia prima della macchinina: passandoci sopra sembrerebbe una gabbia
-  if (inMacchina) disegnaScia(ctx, p, mondo.tempo);
+  // la scia prima della figura: passandoci sopra sembrerebbe una gabbia
+  if (inMacchina || conMadonnina) {
+    disegnaScia(ctx, p, mondo.tempo, conMadonnina ? 'rgba(240,206,110,0.6)' : 'rgba(244,129,60,0.5)');
+  }
+  if (conMadonnina) disegnaAureola(ctx, p, mondo.tempo);
 
   ctx.globalAlpha = lampeggia ? 0.55 : 1;
   conFigura(ctx, p.x, p.y, p.scala, () => {
@@ -1061,13 +1257,42 @@ function disegnaCorridore(ctx, mondo) {
     }
 
     disegnaFigura(ctx, {
-      colore: COLORI.omino,
-      luce: COLORI.ominoOmbra,
+      colore: conMadonnina ? '#f2d573' : COLORI.omino,
+      luce: conMadonnina ? '#fbeeb8' : COLORI.ominoOmbra,
       fase: corridore.fase,
       posa,
     });
   });
   ctx.globalAlpha = 1;
+}
+
+/** L'aureola di chi corre con la Madonnina: un alone dorato e le stelle che
+ *  girano sopra la testa. */
+function disegnaAureola(ctx, p, tempo) {
+  const alone = ctx.createRadialGradient(
+    p.x,
+    p.y - 1 * p.scala,
+    0.2 * p.scala,
+    p.x,
+    p.y - 1 * p.scala,
+    1.8 * p.scala,
+  );
+  alone.addColorStop(0, 'rgba(246,224,143,0.5)');
+  alone.addColorStop(1, 'rgba(246,224,143,0)');
+  ctx.fillStyle = alone;
+  ctx.beginPath();
+  ctx.arc(p.x, p.y - 1 * p.scala, 1.8 * p.scala, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#f7e296';
+  for (let i = 0; i < 7; i += 1) {
+    const angolo = Math.PI * (0.1 + (i / 6) * 0.8) + tempo * 1.2;
+    const cx = p.x + Math.cos(angolo) * 0.42 * p.scala;
+    const cy = p.y - (1.98 + Math.sin(angolo) * 0.12) * p.scala;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 0.05 * p.scala, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }
 
 /** Il poliziotto dello scudo: corre a fianco, dalla parte dove c'e' piu'
@@ -1103,8 +1328,8 @@ function disegnaPoliziotto(ctx, vista, corridore, tempo) {
   ctx.fill();
 }
 
-function disegnaScia(ctx, p, tempo) {
-  ctx.strokeStyle = 'rgba(244,129,60,0.5)';
+function disegnaScia(ctx, p, tempo, colore = 'rgba(244,129,60,0.5)') {
+  ctx.strokeStyle = colore;
   ctx.lineWidth = Math.max(1, 0.05 * p.scala);
   for (let i = 1; i <= 4; i += 1) {
     const y = p.y - (0.4 + i * 0.32) * p.scala;
@@ -1264,6 +1489,13 @@ function disegnaBonusAttivi(ctx, mondo, interfaccia, unita) {
   if (calamitaAttiva(mondo)) {
     attivi.push({ tipo: CALAMITA, parte: rimastoCalamita(mondo) / DURATA_CALAMITA, colore: COLORI.calamita });
   }
+  if (madonninaAttiva(mondo)) {
+    attivi.push({
+      tipo: MADONNINA,
+      parte: rimastoMadonnina(mondo) / DURATA_MADONNINA,
+      colore: COLORI.madonnina,
+    });
+  }
   if (attivi.length === 0) return;
 
   const raggio = unita * 0.042;
@@ -1399,9 +1631,11 @@ function disegnaSchermataIniziale(ctx, mondo, interfaccia) {
   ctx.fillStyle = '#f4813c';
   ctx.fillText('ESCAPE', vista.larghezza / 2, vista.altezza * 0.115 + unita * 0.135);
 
+  const sottotitolo = 'Ti inseguono. Non farti prendere il portafoglio';
+  corpoCheCiSta(ctx, sottotitolo, unita * 0.045, vista.larghezza * 0.92);
+  ctx.textAlign = 'center';
   ctx.fillStyle = 'rgba(247,248,250,0.85)';
-  ctx.font = `600 ${unita * 0.045}px system-ui, -apple-system, sans-serif`;
-  ctx.fillText('ti inseguono. non farti prendere.', vista.larghezza / 2, vista.altezza * 0.28);
+  ctx.fillText(sottotitolo, vista.larghezza / 2, vista.altezza * 0.28);
 
   const istruzioni = 'a lato il monopattino · in alto la buca · in basso il lampione';
   corpoCheCiSta(ctx, istruzioni, unita * 0.038, vista.larghezza * 0.94);
@@ -1452,10 +1686,66 @@ function disegnaSchermataPausa(ctx, mondo, interfaccia) {
 
 const SPIEGAZIONI = {
   buca: 'sei finito in una buca',
+  aiuola: "sei finito in un'aiuola del sindaco",
   monopattino: 'ti ha travolto un monopattino',
-  lampione: 'hai preso in pieno il lampione',
+  ponticello: 'hai preso in pieno il ponticello',
+  arco: "sei andato addosso a un pilone dell'arco",
   raggiunto: 'ti hanno raggiunto',
 };
+
+/** L'apparizione della Madonnina: il mondo e' fermo, lei arriva dall'alto in
+ *  mezzo ai raggi, e per due secondi non si gioca. */
+function disegnaApparizione(ctx, mondo) {
+  const vista = mondo.vista;
+  const unita = Math.min(vista.larghezza, vista.altezza * 0.62);
+  const t = Math.min(1, mondo.tempoApparizione / (DURATA_APPARIZIONE * 0.45));
+  const uscita = Math.max(0, (mondo.tempoApparizione - DURATA_APPARIZIONE * 0.8) / (DURATA_APPARIZIONE * 0.2));
+
+  ctx.globalAlpha = 1 - uscita;
+  velo(ctx, vista, 0.55 * t);
+
+  const cx = vista.larghezza / 2;
+  const cy = vista.altezza * 0.42;
+  const altezza = vista.altezza * 0.3 * (0.6 + 0.4 * t);
+
+  // i raggi, che girano piano
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(mondo.tempoApparizione * 0.35);
+  for (let i = 0; i < 16; i += 1) {
+    ctx.rotate((Math.PI * 2) / 16);
+    ctx.fillStyle = i % 2 === 0 ? 'rgba(246,224,143,0.28)' : 'rgba(246,224,143,0.12)';
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(altezza * 2.2, -altezza * 0.13);
+    ctx.lineTo(altezza * 2.2, altezza * 0.13);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+
+  const alone = ctx.createRadialGradient(cx, cy, altezza * 0.1, cx, cy, altezza * 1.4);
+  alone.addColorStop(0, 'rgba(250,236,180,0.75)');
+  alone.addColorStop(1, 'rgba(250,236,180,0)');
+  ctx.fillStyle = alone;
+  ctx.beginPath();
+  ctx.arc(cx, cy, altezza * 1.4, 0, Math.PI * 2);
+  ctx.fill();
+
+  conFigura(ctx, cx, cy + altezza * 0.55, altezza, () => {
+    disegnaMadonnina(ctx, { tempo: mondo.tempoApparizione });
+  });
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#f7e296';
+  ctx.font = `800 ${unita * 0.085}px system-ui, -apple-system, sans-serif`;
+  ctx.fillText('LA MADONNINA', cx, vista.altezza * 0.68);
+  ctx.fillStyle = 'rgba(247,248,250,0.8)';
+  ctx.font = `600 ${unita * 0.042}px system-ui, -apple-system, sans-serif`;
+  ctx.fillText('dieci secondi che non ti prende nessuno', cx, vista.altezza * 0.74);
+  ctx.globalAlpha = 1;
+}
 
 function disegnaSchermataFine(ctx, mondo, interfaccia) {
   const vista = mondo.vista;
@@ -1469,13 +1759,18 @@ function disegnaSchermataFine(ctx, mondo, interfaccia) {
   ctx.font = `800 ${unita * 0.15}px system-ui, -apple-system, sans-serif`;
   ctx.fillText('PRESO', vista.larghezza / 2, vista.altezza * 0.24);
 
-  ctx.fillStyle = 'rgba(247,248,250,0.85)';
-  ctx.font = `600 ${unita * 0.045}px system-ui, -apple-system, sans-serif`;
-  ctx.fillText(SPIEGAZIONI[mondo.causaFine] || 'ti hanno preso', vista.larghezza / 2, vista.altezza * 0.32);
+  corpoCheCiSta(ctx, GRIDO_SCONFITTA, unita * 0.055, vista.larghezza * 0.92, 700);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#f7f8fa';
+  ctx.fillText(GRIDO_SCONFITTA, vista.larghezza / 2, vista.altezza * 0.325);
+
+  ctx.fillStyle = 'rgba(247,248,250,0.6)';
+  ctx.font = `600 ${unita * 0.038}px system-ui, -apple-system, sans-serif`;
+  ctx.fillText(SPIEGAZIONI[mondo.causaFine] || 'ti hanno preso', vista.larghezza / 2, vista.altezza * 0.375);
 
   ctx.fillStyle = COLORI.testo;
   ctx.font = `800 ${unita * 0.12}px system-ui, -apple-system, sans-serif`;
-  ctx.fillText(String(mondo.punteggio), vista.larghezza / 2, vista.altezza * 0.44);
+  ctx.fillText(String(mondo.punteggio), vista.larghezza / 2, vista.altezza * 0.45);
 
   const riassunto = `${Math.floor(mondo.distanza)} metri  ·  ${mondo.monete} monete (${mondo.monete * PUNTI_PER_MONETA})`;
   corpoCheCiSta(ctx, riassunto, unita * 0.04, vista.larghezza * 0.9);

@@ -71,9 +71,8 @@ export const FILO_MONUMENTI = BORDO_STRADA + 0.6;
  *  vede arrivare. */
 const PIAZZA = 72;
 
-/** L'Arco della Pace scavalca la strada: e' il fondo di corso Sempione, e ci
- *  si passa sotto correndo. Sta in alto, non tocca nessuno. */
-export const ARCO = { z: 380, profondita: 6, altezza: 25 };
+/* L'Arco della Pace non sta piu' qui: da scenografia e' diventato un ostacolo,
+   e gli ostacoli li genera `percorso.js`. Si passa dal fornice centrale. */
 
 /** Ogni quanti metri, all'incirca, gli arredi del marciapiede. */
 const PASSO_ALBERI = 13;
@@ -103,7 +102,6 @@ export function creaCitta(seme = 7) {
   const rng = creaRng(seme);
   return {
     edifici: [...generaLato(-1, rng), ...generaLato(1, rng)],
-    arco: ARCO,
     alberi: generaFilare(rng, PASSO_ALBERI, 2.2),
     lampioni: generaFilare(rng, PASSO_LAMPIONI, 1.1),
     paliLinea: generaPali(),

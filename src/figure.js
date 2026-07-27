@@ -412,6 +412,93 @@ export function disegnaMacchinina(ctx, { corpo = '#d8342c', tempo = 0 } = {}) {
   ctx.restore();
 }
 
+/** La Madonnina, alta un metro con l'origine ai piedi. E' la statua in cima
+ *  alla guglia maggiore del Duomo: veste dorata, braccia aperte e la corona di
+ *  stelle intorno al capo. Chi la disegna la scala a quel che gli serve — un
+ *  ciondolo da raccogliere o un'apparizione alta mezzo schermo. */
+export function disegnaMadonnina(ctx, { tempo = 0 } = {}) {
+  const ORO = '#e6c150';
+  const ORO_CHIARO = '#f7e296';
+  const ORO_SCURO = '#b3892a';
+
+  // la veste, che si allarga verso il basso
+  ctx.fillStyle = ORO;
+  ctx.beginPath();
+  ctx.moveTo(-0.2, 0);
+  ctx.lineTo(-0.09, 0.5);
+  ctx.lineTo(-0.075, 0.66);
+  ctx.lineTo(0.075, 0.66);
+  ctx.lineTo(0.09, 0.5);
+  ctx.lineTo(0.2, 0);
+  ctx.closePath();
+  ctx.fill();
+
+  // le pieghe del manto
+  ctx.strokeStyle = ORO_SCURO;
+  ctx.lineWidth = 0.016;
+  for (const segno of [-1, 0, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(segno * 0.03, 0.6);
+    ctx.lineTo(segno * 0.1, 0.02);
+    ctx.stroke();
+  }
+
+  // le braccia aperte, un po' abbassate
+  ctx.strokeStyle = ORO;
+  ctx.lineCap = 'round';
+  ctx.lineWidth = 0.055;
+  for (const segno of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(segno * 0.06, 0.63);
+    ctx.lineTo(segno * 0.17, 0.56);
+    ctx.lineTo(segno * 0.27, 0.5);
+    ctx.stroke();
+  }
+
+  // Il velo prima, la faccia dentro: il velo scende sulle spalle e incornicia
+  // il viso, non ci sta appoggiato sopra come un cappello.
+  ctx.fillStyle = ORO;
+  ctx.beginPath();
+  ctx.moveTo(-0.075, 0.63);
+  ctx.quadraticCurveTo(-0.105, 0.78, 0, 0.815);
+  ctx.quadraticCurveTo(0.105, 0.78, 0.075, 0.63);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = ORO_CHIARO;
+  ctx.beginPath();
+  ctx.ellipse(0, 0.735, 0.045, 0.055, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // la corona di stelle, che gira piano
+  ctx.fillStyle = ORO_CHIARO;
+  for (let i = 0; i < 7; i += 1) {
+    const angolo = Math.PI * (0.12 + (i / 6) * 0.76) + Math.sin(tempo * 0.6) * 0.04;
+    stella(ctx, Math.cos(angolo) * 0.13, 0.78 + Math.sin(angolo) * 0.11, 0.022);
+  }
+
+  // il parafulmine sopra la statua, che nelle foto c'e' sempre
+  ctx.strokeStyle = ORO_SCURO;
+  ctx.lineWidth = 0.012;
+  ctx.beginPath();
+  ctx.moveTo(0, 0.84);
+  ctx.lineTo(0, 1);
+  ctx.stroke();
+}
+
+function stella(ctx, cx, cy, raggio) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i += 1) {
+    const angolo = (Math.PI * i) / 5 - Math.PI / 2;
+    const r = i % 2 === 0 ? raggio : raggio * 0.42;
+    const x = cx + Math.cos(angolo) * r;
+    const y = cy + Math.sin(angolo) * r;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.fill();
+}
+
 // --- di fronte -------------------------------------------------------------
 
 export const COLTELLO_IN_MANO = 'coltello';

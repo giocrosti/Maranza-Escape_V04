@@ -390,25 +390,31 @@ function facciataBosco(ctx, punto) {
 
 // --- Arco della Pace -------------------------------------------------------
 
-/** L'Arco della Pace scavalca la strada, e ci si passa sotto correndo.
- *  Ha tre fornici — quello grande in mezzo e due piccoli ai lati — le colonne
- *  corinzie, l'attico con l'iscrizione e in cima la Sestiga della Pace con le
- *  quattro Vittorie a cavallo agli angoli. */
-export function disegnaArco(ctx, vista, arco, z, semiLarghezza) {
-  const h = arco.altezza;
-  const spessore = arco.profondita;
+/** L'Arco della Pace, che non e' piu' un monumento da guardare ma un ostacolo
+ *  da attraversare: si passa dal fornice centrale, e il fornice centrale e'
+ *  **esattamente la corsia di mezzo**. I due fornici laterali cadono sulla sede
+ *  del tram e sulla fascia di sosta, fuori dalla carreggiata, quindi non
+ *  promettono un varco che non c'e'.
+ *
+ *  Ha le colonne corinzie, l'attico con l'iscrizione e in cima la Sestiga della
+ *  Pace con le quattro Vittorie a cavallo agli angoli. */
+export function disegnaArco(ctx, vista, z, altezza, semiLarghezza, semiVarco) {
+  const h = altezza;
+  const spessore = 4;
   const zTesta = z - spessore / 2;
   const zFondo = z + spessore / 2;
+  /** Da metri di strada a coordinate di facciata. */
+  const versoU = (x) => 0.5 + x / (2 * semiLarghezza);
+  const larghezzaVarco = semiVarco / semiLarghezza / 2;
 
   // i due piloni, in volume: fianco interno e testa
   for (const lato of [-1, 1]) {
-    const dentro = lato * (semiLarghezza - 2.1);
     ctx.fillStyle = MARMO_OMBRA;
-    parete(ctx, vista, dentro, 0, h * 0.68, Math.max(zTesta, -3), zFondo);
+    parete(ctx, vista, lato * semiVarco, 0, h * 0.68, Math.max(zTesta, -3), zFondo);
   }
   // il cielo dell'arcata
   ctx.fillStyle = MARMO_SCURO;
-  parete(ctx, vista, 0, h * 0.62, h * 0.68, Math.max(zTesta, -3), zFondo);
+  parete(ctx, vista, 0, h * 0.6, h * 0.68, Math.max(zTesta, -3), zFondo);
 
   if (zTesta <= 0.4) return;
 
@@ -418,19 +424,27 @@ export function disegnaArco(ctx, vista, arco, z, semiLarghezza) {
   // strada attraverso. Si ottengono disegnando il rettangolo esterno e i tre
   // archi in un percorso solo, riempito con la regola pari-dispari, che lascia
   // vuoto quel che sta dentro un numero dispari di contorni.
-  const fornici = [
-    fornice(0.5, 0.145, 0.34),
-    fornice(0.185, 0.062, 0.22),
-    fornice(0.815, 0.062, 0.22),
+  const laterale = versoU(-(semiVarco + semiLarghezza) / 2);
+  const raggioLaterale = larghezzaVarco * 0.62;
+  const archi = [
+    [0.5, larghezzaVarco, 0.33],
+    [laterale, raggioLaterale, 0.2],
+    [1 - laterale, raggioLaterale, 0.2],
   ];
-  facciataForata(ctx, punto, [[0, 0], [1, 0], [1, 0.68], [0, 0.68]], fornici, MARMO);
+  facciataForata(
+    ctx,
+    punto,
+    [[0, 0], [1, 0], [1, 0.68], [0, 0.68]],
+    archi.map(([c, r, i]) => fornice(c, r, i)),
+    MARMO,
+  );
 
   // la ghiera attorno a ogni fornice
-  for (const [centro, raggio, imposta] of [[0.5, 0.145, 0.34], [0.185, 0.062, 0.22], [0.815, 0.062, 0.22]]) {
+  for (const [centro, raggio, imposta] of archi) {
     const ghiera = [];
     for (let i = 0; i <= 18; i += 1) {
       const a = Math.PI * (i / 18);
-      ghiera.push([centro - Math.cos(a) * (raggio + 0.02), imposta + Math.sin(a) * (raggio + 0.02)]);
+      ghiera.push([centro - Math.cos(a) * (raggio + 0.018), imposta + Math.sin(a) * (raggio + 0.018)]);
     }
     for (let i = 18; i >= 0; i -= 1) {
       const a = Math.PI * (i / 18);
@@ -439,11 +453,17 @@ export function disegnaArco(ctx, vista, arco, z, semiLarghezza) {
     poligonoFacciata(ctx, punto, ghiera, MARMO_OMBRA);
   }
 
-  // le quattro colonne corinzie
-  for (const u of [0.29, 0.4, 0.6, 0.71]) {
-    rettangoloFacciata(ctx, punto, u - 0.016, 0.03, u + 0.016, 0.56, MARMO_OMBRA);
-    rettangoloFacciata(ctx, punto, u - 0.022, 0.56, u + 0.022, 0.6, MARMO_SCURO);
-    rettangoloFacciata(ctx, punto, u - 0.022, 0, u + 0.022, 0.03, MARMO_SCURO);
+  // le quattro colonne corinzie, addossate ai piloni del varco
+  const colonne = [
+    versoU(-semiVarco - 0.9),
+    versoU(-semiVarco - 0.15),
+    versoU(semiVarco + 0.15),
+    versoU(semiVarco + 0.9),
+  ];
+  for (const colonna of colonne) {
+    rettangoloFacciata(ctx, punto, colonna - 0.016, 0.03, colonna + 0.016, 0.56, MARMO_OMBRA);
+    rettangoloFacciata(ctx, punto, colonna - 0.022, 0.56, colonna + 0.022, 0.6, MARMO_SCURO);
+    rettangoloFacciata(ctx, punto, colonna - 0.022, 0, colonna + 0.022, 0.03, MARMO_SCURO);
   }
 
   // i bassorilievi negli spazi fra gli archi
