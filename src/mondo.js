@@ -62,7 +62,7 @@ export function creaMondo(larghezza, altezza, rng = Math.random) {
   return {
     vista: creaVista(larghezza, altezza),
     tempo: 0,
-    stato: 'attesa', // 'attesa' | 'in-gioco' | 'finita'
+    stato: 'attesa', // 'attesa' | 'in-gioco' | 'pausa' | 'finita'
     causaFine: null, // 'buca' | 'monopattino' | 'lampione'
     tempoInizio: 0,
     tempoFine: null,
@@ -163,8 +163,36 @@ export function comando(mondo, azione) {
   return true;
 }
 
+/** Mette in pausa. Si puo' solo da dentro una partita: sulle due schermate
+ *  non c'e' niente da fermare. */
+export function mettiInPausa(mondo) {
+  if (mondo.stato !== 'in-gioco') return false;
+  mondo.stato = 'pausa';
+  return true;
+}
+
+export function riprendi(mondo) {
+  if (mondo.stato !== 'pausa') return false;
+  mondo.stato = 'in-gioco';
+  return true;
+}
+
+/** Il pulsante fa le due cose: ferma se si sta correndo, riparte se e' fermo. */
+export function alternaPausa(mondo) {
+  return mettiInPausa(mondo) || riprendi(mondo);
+}
+
+export function inPausa(mondo) {
+  return mondo.stato === 'pausa';
+}
+
 /** Avanza il mondo di `dt` secondi. Ritorna il mondo stesso, modificato. */
 export function avanzaMondo(mondo, dt, rng = Math.random) {
+  // In pausa il tempo non passa affatto: non e' solo la strada che si ferma,
+  // sono anche i secondi che restano allo scatto e alla calamita, che sono
+  // contati sull'orologio del mondo. Fermare il mondo li ferma con se'.
+  if (mondo.stato === 'pausa') return mondo;
+
   const passo = Math.min(Math.max(dt, 0), DT_MASSIMO);
   mondo.tempo += passo;
   mondo.velocita = velocitaCorsa(mondo);

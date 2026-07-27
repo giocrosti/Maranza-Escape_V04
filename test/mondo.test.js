@@ -7,6 +7,11 @@ import {
   subisciErrore,
   puoRiavviare,
   terminaPartita,
+  mettiInPausa,
+  riprendi,
+  alternaPausa,
+  inPausa,
+  scattoAttivo,
   RITARDO_RIAVVIO,
   PUNTI_PER_MONETA,
   DURATA_SCATTO,
@@ -222,6 +227,83 @@ test('si puo riprovare, ma non nello stesso istante in cui si perde', () => {
   assert(!puoRiavviare(mondo), 'subito dopo la sconfitta il tocco non conta');
   corri(mondo, RITARDO_RIAVVIO + 0.2);
   assert(puoRiavviare(mondo), 'passato un attimo si puo riprovare');
+});
+
+test('in pausa non si muove piu niente, nemmeno il tempo', () => {
+  const mondo = partitaControllata([creaMonopattino(40, 1)]);
+  corri(mondo, 1);
+  const fotografia = {
+    tempo: mondo.tempo,
+    distanza: mondo.distanza,
+    corsia: mondo.corridore.posizione,
+    distacco: mondo.inseguitori.distacco,
+    scorrimento: mondo.scorrimento,
+  };
+
+  assertUguale(mettiInPausa(mondo), true);
+  corri(mondo, 5); // cinque secondi di fotogrammi a vuoto
+
+  assertUguale(mondo.tempo, fotografia.tempo, 'in pausa l orologio del mondo sta fermo');
+  assertUguale(mondo.distanza, fotografia.distanza, 'la strada non scorre');
+  assertUguale(mondo.scorrimento, fotografia.scorrimento, 'nemmeno la citta');
+  assertUguale(mondo.corridore.posizione, fotografia.corsia);
+  assertUguale(mondo.inseguitori.distacco, fotografia.distacco, 'e i maranza non guadagnano terreno');
+  assertUguale(mondo.errori, 0, 'e nessun ostacolo arriva addosso da fermo');
+});
+
+test('la pausa non consuma i bonus', () => {
+  const mondo = partitaControllata();
+  mondo.scattoFinoA = mondo.tempo + DURATA_SCATTO;
+  mettiInPausa(mondo);
+  corri(mondo, 30);
+  assertUguale(riprendi(mondo), true);
+  assert(scattoAttivo(mondo), 'lo scatto era acceso quando si e messo in pausa, e lo e ancora');
+});
+
+test('si riprende da dove si era rimasti', () => {
+  const mondo = partitaControllata();
+  corri(mondo, 2);
+  const distanza = mondo.distanza;
+  mettiInPausa(mondo);
+  corri(mondo, 3);
+  riprendi(mondo);
+  corri(mondo, 1);
+  assert(mondo.distanza > distanza, 'ripreso, la strada torna a scorrere');
+  assertUguale(mondo.stato, 'in-gioco');
+});
+
+test('in pausa i comandi non arrivano all omino', () => {
+  const mondo = partitaControllata();
+  mettiInPausa(mondo);
+  assertUguale(comando(mondo, 'destra'), false);
+  assertUguale(comando(mondo, 'salta'), false);
+  assertUguale(mondo.corridore.bersaglio, 1);
+  assertUguale(mondo.corridore.inAria, false);
+});
+
+test('si mette in pausa solo una partita in corso', () => {
+  const attesa = creaMondo(390, 844);
+  assertUguale(mettiInPausa(attesa), false, 'sulla schermata iniziale non c e niente da fermare');
+  assertUguale(attesa.stato, 'attesa');
+
+  const finita = partitaControllata();
+  terminaPartita(finita, 'buca');
+  assertUguale(mettiInPausa(finita), false, 'a partita finita nemmeno');
+  assertUguale(finita.stato, 'finita');
+});
+
+test('lo stesso pulsante ferma e fa ripartire', () => {
+  const mondo = partitaControllata();
+  assertUguale(alternaPausa(mondo), true);
+  assert(inPausa(mondo), 'primo tocco: fermo');
+  assertUguale(alternaPausa(mondo), true);
+  assertUguale(mondo.stato, 'in-gioco', 'secondo tocco: si riparte');
+});
+
+test('in pausa non si riavvia per sbaglio con un tocco', () => {
+  const mondo = partitaControllata();
+  mettiInPausa(mondo);
+  assertUguale(puoRiavviare(mondo), false, 'il tocco in pausa riprende, non ricomincia da capo');
 });
 
 test('a partita finita non si fanno piu metri', () => {

@@ -1,8 +1,11 @@
 # Maranza escape
 
-Gioco di corsa infinita nel browser, ambientato in una strada di Milano a tre corsie.
-Un omino bianco scappa da un gruppo di maranza col coltello: si saltano le buche, si
-schivano i monopattini cambiando corsia e ci si abbassa sotto i lampioni caduti.
+Gioco di corsa infinita nel browser, ambientato su una via a grande scorrimento di
+Milano: tre corsie d'asfalto, la sede del tram con le rotaie e la linea aerea da una
+parte, la fila delle auto in sosta dall'altra, i platani sui marciapiedi e l'Arco
+della Pace in fondo alla via. Un omino bianco scappa da un gruppo di maranza col
+coltello: si saltano le buche, si schivano i monopattini cambiando corsia e ci si
+abbassa sotto i lampioni caduti.
 HTML5 Canvas e JavaScript vanilla, nessuna dipendenza da installare.
 
 E' pensato per stare sulla schermata Home di un iPhone: manifest, icone,
@@ -18,8 +21,13 @@ Il telefono si tiene **in verticale**. Si comanda scorrendo il dito:
 | in alto | salta | la buca (larga una, due o tre corsie) |
 | in basso | ti abbassi | il lampione caduto di traverso |
 
+Il **pulsante di pausa** sta in alto a destra: ferma tutto, orologio compreso, e i
+secondi che restano ai bonus non scorrono. Si riprende toccando il pulsante, o
+toccando lo schermo. Il gioco si mette in pausa **da solo** quando l'app finisce in
+secondo piano: chi risponde a una chiamata non deve tornare e trovarsi morto.
+
 Da tastiera, per provarlo sul computer: frecce o `WASD`, spazio per saltare,
-`Invio` per cominciare, `F` per il contatore di fotogrammi.
+`Invio` per cominciare, `P` o `Esc` per la pausa, `F` per il contatore di fotogrammi.
 
 Ogni ostacolo si evita **in un modo solo**, sempre lo stesso: il monopattino e' alto,
 saltargli sopra non funziona; abbassarsi dentro una buca non serve a niente. Due
@@ -135,7 +143,8 @@ un browser.
 | `src/ostacoli.js` | i tre ostacoli e la regola che dice quando ti prendono |
 | `src/percorso.js` | genera la strada davanti: ostacoli, monete, bonus |
 | `src/inseguitori.js` | il distacco dai maranza: penalita', recupero, cattura |
-| `src/citta.js` | dove stanno palazzi, monumenti, lampioni e binari |
+| `src/citta.js` | la sezione della via e dove stanno palazzi, monumenti, alberi, auto e tram |
+| `src/pausa.js` | geometria del pulsante di pausa, condivisa fra disegno e tocco |
 | `src/mondo.js` | stato della partita e sua evoluzione: urti, raccolte, fine |
 | `src/record.js` | record personale in localStorage |
 | `src/render.js` | tutto il disegno sul canvas |
@@ -162,9 +171,24 @@ Qualche scelta che vale la pena conoscere prima di mettere le mani al codice:
   dall'asfalto. In discesa invece la quota conta davvero. Senza questa asimmetria,
   chi salta un attimo prima del bordo della buca ci cadeva dentro lo stesso, e non si
   capiva perche'.
-- **L'ombra del lampione caduto e' tenue di proposito.** Un'ombra marcata, vista da
-  vicino, si legge come una buca: in un gioco dove le buche si saltano sarebbe un
-  inganno.
+- **L'ombra del lampione caduto e' tenue di proposito**, e i rattoppi dell'asfalto
+  sono grigi e mai neri. Qualunque macchia scura sulla strada, vista da vicino, si
+  legge come una buca: in un gioco dove le buche si saltano sarebbe un inganno.
+- **Le buche non sono rettangoli.** Ognuna ha un contorno frastagliato suo, generato
+  una volta sola dalla sua posizione, quindi sempre uguale a se stesso. Non e'
+  un'ellisse ma un rettangolo smussato: l'urto usa il riquadro pieno, e un contorno
+  tondo lascerebbe scoperte le due punte laterali, dove si cadrebbe in una buca che
+  li' non si vede. C'e' un test che lo verifica corsia per corsia.
+- **La corsa e' disegnata per come si vede da dietro**, che non e' come si vede di
+  profilo. Le gambe non si aprono avanti e indietro sullo schermo, perche' quel
+  movimento va nella direzione in cui si guarda: quello che si vede e' il tallone
+  che si alza dietro con la pianta della scarpa che lampeggia, il busto che
+  sobbalza due volte per falcata e il braccio che esce di lato quando va indietro.
+  Le braccia si disegnano **prima** del busto apposta, cosi' quella che va avanti
+  gli finisce dietro.
+- **La pausa ferma l'orologio del mondo, non solo la strada.** I secondi che restano
+  a scatto e calamita sono contati su quell'orologio: fermarlo li ferma con se',
+  senza doverli salvare e rimettere a posto.
 - **Un ostacolo per volta.** Il generatore non mette mai due ostacoli sovrapposti, e
   la distanza minima fra uno e l'altro cresce con la velocita': serve il tempo di
   vederlo arrivare. Un test lo verifica su quattro chilometri di strada e cinque semi
@@ -177,7 +201,16 @@ Qualche scelta che vale la pena conoscere prima di mettere le mani al codice:
   passaggio e l'altro corrono minuti) e in cambio la scena si genera una volta sola,
   con un seme fisso: la strada dev'essere sempre la stessa strada, non un posto
   diverso a ogni partita. I monumenti — Galleria, Duomo, Torre Velasca, Bosco
-  Verticale — stanno in punti stabiliti, non a caso.
+  Verticale, Arco della Pace — stanno in punti stabiliti, non a caso.
+- **I due lati della via sono diversi apposta**: a sinistra la sede tranviaria con le
+  rotaie, i pali e ogni tanto un tram fermo, a destra la fila delle auto in sosta con
+  la riga blu. Una via simmetrica sembra un rendering; una via col tram da una parte
+  e le macchine dall'altra sembra un posto. La sezione completa — carreggiata, fascia
+  laterale, marciapiede, filo dei palazzi — sta scritta in cima a `citta.js`.
+- **Niente arredi a ridosso dell'obiettivo.** Lampioni, alberi e ruote delle auto
+  smettono di disegnarsi quando la telecamera li ha quasi addosso: a mezzo metro
+  diventano sbarre e dischi neri grandi come lo schermo. La soglia e' scelta perche'
+  cadano fuori dai bordi, non perche' spariscano mentre li stai ancora superando.
 - **La scivolata e' una posa a se',** non la figura in piedi schiacciata: schiacciata
   verrebbe una testa ovale e le braccia spalancate, e da dietro non si capirebbe cosa
   sta succedendo.

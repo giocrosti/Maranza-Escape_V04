@@ -13,10 +13,13 @@ export const SOGLIA = 26;
  *  dito appoggiato, non un tocco. */
 const DURATA_MASSIMA_TOCCO = 500;
 
-/** Collega gli eventi del puntatore a due funzioni: `azione` riceve
- *  'sinistra' | 'destra' | 'salta' | 'scivola', `tocco` il tocco secco.
+/** Collega gli eventi del puntatore alle funzioni del gioco:
+ *  - `azione` riceve 'sinistra' | 'destra' | 'salta' | 'scivola';
+ *  - `tocco` il tocco secco;
+ *  - `intercetta(x, y)` puo' prendersi la pressione prima di tutti (e' il
+ *    pulsante di pausa): se ritorna true, li' non comincia nessuna passata.
  *  Ritorna la funzione per scollegare tutto. */
-export function collegaInput(elemento, { azione, tocco }) {
+export function collegaInput(elemento, { azione, tocco, intercetta }) {
   let passata = null;
 
   const coordinate = (evento) => {
@@ -29,6 +32,9 @@ export function collegaInput(elemento, { azione, tocco }) {
     // primo, le altre si ignorano finche' non si stacca.
     if (passata) return;
     const { x, y } = coordinate(evento);
+    // Il pulsante viene prima: senza, premerlo conterebbe anche come tocco
+    // sullo schermo e il gioco ripartirebbe nello stesso istante.
+    if (intercetta && intercetta(x, y)) return;
     passata = { puntatore: evento.pointerId, x, y, tempo: performance.now(), fatta: false };
     try {
       elemento.setPointerCapture?.(evento.pointerId);

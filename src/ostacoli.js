@@ -27,6 +27,43 @@ const PROFONDITA_MONOPATTINO = 1.4;
  *  abbassati. */
 const PROFONDITA_LAMPIONE = 0.7;
 
+/** Quanti vertici ha il contorno di una buca. */
+const VERTICI_BUCA = 18;
+
+/** Il contorno frastagliato di una buca, in coordinate da -1 a 1 rispetto al
+ *  suo riquadro: -1 e' il bordo sinistro (o vicino), +1 quello destro (o
+ *  lontano). Chi disegna non deve fare altro che scalarlo.
+ *
+ *  Non e' un cerchio deformato: e' un rettangolo con gli angoli smussati e i
+ *  bordi rosicchiati. La differenza conta, e non solo per l'occhio — l'urto
+ *  usa il riquadro pieno, e un contorno tondo lascerebbe fuori le due punte
+ *  della corsia, dove si cadrebbe in una buca che li' non si vede.
+ *
+ *  Deterministico: la stessa buca ha sempre la stessa forma, anche dopo aver
+ *  ricaricato la pagina. */
+export function profiloBuca(seme, vertici = VERTICI_BUCA) {
+  let stato = (Math.imul(seme + 1, 2654435761) ^ 0x9e3779b9) >>> 0;
+  const successivo = () => {
+    stato = (Math.imul(stato, 1664525) + 1013904223) >>> 0;
+    return stato / 4294967296;
+  };
+
+  const contorno = [];
+  for (let i = 0; i < vertici; i += 1) {
+    const angolo = (Math.PI * 2 * i) / vertici;
+    const coseno = Math.cos(angolo);
+    const seno = Math.sin(angolo);
+    // esponente sotto 1: il contorno si gonfia verso il rettangolo invece di
+    // restare un'ellisse
+    const raggio = 0.86 + successivo() * 0.14;
+    contorno.push([
+      Math.sign(coseno) * Math.abs(coseno) ** 0.55 * raggio,
+      Math.sign(seno) * Math.abs(seno) ** 0.55 * raggio,
+    ]);
+  }
+  return contorno;
+}
+
 /** `z` e' sempre il centro dell'ostacolo, in metri dalla partenza. */
 export function creaBuca(z, corsiaInizio, quanteCorsie, lunghezza) {
   return {
@@ -36,7 +73,7 @@ export function creaBuca(z, corsiaInizio, quanteCorsie, lunghezza) {
     corsiaInizio,
     quanteCorsie,
     colpito: false,
-    seme: Math.floor(z * 7919) % 1000, // per un bordo frastagliato sempre uguale
+    contorno: profiloBuca(Math.floor(z * 7919) % 100000),
   };
 }
 

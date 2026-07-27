@@ -7,10 +7,14 @@ import {
   avviaPartita,
   puoRiavviare,
   comando,
+  alternaPausa,
+  mettiInPausa,
+  inPausa,
 } from './mondo.js';
 import { disegnaMondo } from './render.js';
 import { collegaInput, azioneDaTasto } from './input.js';
 import { leggiRecord, aggiornaRecord } from './record.js';
+import { areaPausa, toccaPausa } from './pausa.js';
 
 const canvas = document.getElementById('gioco');
 const ctx = canvas.getContext('2d');
@@ -118,27 +122,52 @@ function partenza() {
   tieniAccesoLoSchermo();
 }
 
+/** Il pulsante di pausa, e il tocco che riprende da fermo. */
+function commutaPausa() {
+  if (!alternaPausa(mondo)) return;
+  if (inPausa(mondo)) lasciaSpegnereLoSchermo();
+  else tieniAccesoLoSchermo();
+}
+
 collegaInput(canvas, {
+  intercetta: (x, y) => {
+    if (mondo.stato !== 'in-gioco' && !inPausa(mondo)) return false;
+    if (!toccaPausa(areaPausa(mondo.vista, interfaccia.margini), x, y)) return false;
+    commutaPausa();
+    return true;
+  },
   azione: (azione) => {
+    // In pausa una passata non comanda l'omino: fa solo riprendere.
+    if (inPausa(mondo)) commutaPausa();
     // Fuori dalla partita anche una passata fa partire: chi ha gia' il pollice
     // in movimento non deve scoprire che serviva un tocco secco.
-    if (mondo.stato !== 'in-gioco') partenza();
+    else if (mondo.stato !== 'in-gioco') partenza();
     else comando(mondo, azione);
   },
-  tocco: partenza,
+  tocco: () => {
+    if (inPausa(mondo)) commutaPausa();
+    else partenza();
+  },
 });
 
 window.addEventListener('keydown', (evento) => {
+  if (evento.key === 'p' || evento.key === 'P' || evento.key === 'Escape') {
+    evento.preventDefault();
+    commutaPausa();
+    return;
+  }
   const azione = azioneDaTasto(evento.key);
   if (azione) {
     evento.preventDefault();
-    if (mondo.stato !== 'in-gioco') partenza();
+    if (inPausa(mondo)) commutaPausa();
+    else if (mondo.stato !== 'in-gioco') partenza();
     else comando(mondo, azione);
     return;
   }
   if (evento.key === 'Enter') {
     evento.preventDefault();
-    partenza();
+    if (inPausa(mondo)) commutaPausa();
+    else partenza();
   }
   // diagnostica a richiesta: durante una partita il contatore distrae
   if (evento.key === 'f' || evento.key === 'F') interfaccia.mostraFps = !interfaccia.mostraFps;
@@ -171,14 +200,15 @@ function lasciaSpegnereLoSchermo() {
 
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
+    // Chi torna da una chiamata o da un'altra app non deve trovarsi morto:
+    // uscire mette in pausa, e si riprende quando si vuole.
+    mettiInPausa(mondo);
     lasciaSpegnereLoSchermo();
     return;
   }
-  // Tornando dall'app in secondo piano il tempo e' andato avanti, ma il gioco
-  // no: senza questo, il primo fotogramma varrebbe un salto enorme, e si
-  // riaprirebbe l'app gia' dentro un ostacolo.
+  // Il tempo e' andato avanti mentre l'app era dietro, ma il gioco no: senza
+  // questo, il primo fotogramma varrebbe un salto enorme.
   ultimoTempo = performance.now();
-  if (mondo.stato === 'in-gioco') tieniAccesoLoSchermo();
 });
 
 /** Il service worker fa funzionare il gioco senza rete, ma serve solo alla

@@ -7,6 +7,7 @@ import {
   corsieOstacolo,
   lasciaUnaCorsiaLibera,
   sovrapposto,
+  profiloBuca,
 } from '../src/ostacoli.js';
 import { creaCorridore, salta, scivola, avanzaCorridore } from '../src/corridore.js';
 
@@ -77,6 +78,49 @@ test('un ostacolo gia colpito non colpisce due volte', () => {
   assert(prendeIlCorridore(buca, corridore, 0));
   buca.colpito = true;
   assert(!prendeIlCorridore(buca, corridore, 0), 'una buca si paga una volta sola');
+});
+
+/** Il punto sta dentro il poligono? Lancio di raggio, il metodo di sempre. */
+function dentroIlContorno(contorno, x, z) {
+  let dentro = false;
+  for (let i = 0, j = contorno.length - 1; i < contorno.length; j = i, i += 1) {
+    const [xi, zi] = contorno[i];
+    const [xj, zj] = contorno[j];
+    const attraversa = zi > z !== zj > z;
+    if (attraversa && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) dentro = !dentro;
+  }
+  return dentro;
+}
+
+test('il contorno della buca non esce dal suo riquadro', () => {
+  for (const seme of [0, 1, 17, 4242, 99999]) {
+    for (const [x, z] of profiloBuca(seme)) {
+      assert(Math.abs(x) <= 1.0001 && Math.abs(z) <= 1.0001, `seme ${seme}: vertice fuori dal riquadro`);
+    }
+  }
+});
+
+test('la stessa buca ha sempre la stessa forma, buche diverse no', () => {
+  assertUguale(JSON.stringify(profiloBuca(7)), JSON.stringify(profiloBuca(7)), 'deve essere stabile');
+  assert(
+    JSON.stringify(profiloBuca(7)) !== JSON.stringify(profiloBuca(8)),
+    'due buche di fila non possono essere identiche',
+  );
+});
+
+test('il contorno non e un ellisse: copre le corsie fino ai bordi', () => {
+  // La regola che conta: l'urto usa il riquadro pieno, quindi la buca deve
+  // vedersi in tutte le corsie che occupa, anche in quelle di lato. Un
+  // contorno tondo lascerebbe scoperte le punte e si cadrebbe in una buca che
+  // li' non c'e'.
+  const contorno = profiloBuca(123);
+  for (const quante of [1, 2, 3]) {
+    for (let corsia = 0; corsia < quante; corsia += 1) {
+      const x = (2 * corsia + 1) / quante - 1; // centro della corsia, da -1 a 1
+      assert(dentroIlContorno(contorno, x, 0.55), `${quante} corsie, corsia ${corsia}: buca troppo corta`);
+      assert(dentroIlContorno(contorno, x, -0.55), `${quante} corsie, corsia ${corsia}: buca troppo corta`);
+    }
+  }
 });
 
 test('a meta cambio di corsia si viene presi da tutte e due le corsie', () => {
