@@ -83,6 +83,22 @@ const PASSO_PALI = 24;
 /** Dove la strada e' attraversata dalle strisce pedonali. */
 const ATTRAVERSAMENTI = [95, 250, 430, 600, 715];
 
+/** Le fermate della metropolitana lungo la via. I nomi sono quelli veri, e
+ *  sono messi dove ha senso: il cartello "Duomo" arriva poco prima del Duomo.
+ *  Nessuno sta dentro la piazza di un monumento, che deve restare sgombra. */
+const METRO = [
+  { z: 55, lato: 1, nome: 'CENTRALE FS' },
+  { z: 150, lato: 1, nome: 'CADORNA' },
+  { z: 215, lato: -1, nome: 'CORDUSIO' },
+  { z: 250, lato: -1, nome: 'DUOMO' },
+  { z: 340, lato: 1, nome: 'SAN BABILA' },
+  { z: 420, lato: 1, nome: 'MOSCOVA' },
+  { z: 520, lato: 1, nome: 'GARIBALDI' },
+  { z: 570, lato: -1, nome: "SANT'AMBROGIO" },
+  { z: 660, lato: -1, nome: 'PORTA VENEZIA' },
+  { z: 720, lato: 1, nome: 'LORETO' },
+];
+
 export function creaCitta(seme = 7) {
   const rng = creaRng(seme);
   return {
@@ -94,6 +110,7 @@ export function creaCitta(seme = 7) {
     auto: generaAuto(rng),
     tram: generaTram(rng),
     attraversamenti: ATTRAVERSAMENTI.slice(),
+    metro: METRO.slice(),
     tombini: generaTombini(rng),
     rattoppi: generaRattoppi(rng),
   };

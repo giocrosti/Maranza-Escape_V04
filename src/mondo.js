@@ -29,6 +29,9 @@ export const RITARDO_RIAVVIO = 0.9;
 /** Quanto vale una moneta, in punti. Un metro ne vale uno. */
 export const PUNTI_PER_MONETA = 25;
 
+/** Quel che compare a schermo quando la calamita comincia a tirare monete. */
+export const GRIDO_CALAMITA = 'oggi si fattura';
+
 export const DURATA_SCATTO = 4.5;
 export const DURATA_CALAMITA = 6;
 
@@ -307,7 +310,7 @@ function prendiRaccolta(mondo, raccolta) {
   }
   if (raccolta.tipo === CALAMITA) {
     mondo.calamitaFinoA = mondo.tempo + DURATA_CALAMITA;
-    mondo.avviso = { testo: 'calamita', tempo: mondo.tempo };
+    mondo.avviso = { testo: GRIDO_CALAMITA, tempo: mondo.tempo };
   }
 }
 

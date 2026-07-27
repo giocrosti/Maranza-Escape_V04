@@ -55,11 +55,11 @@ Le monete valgono 25 punti l'una, i metri uno. Stanno nella corsia che l'ostacol
 lascia libera, o in arco sopra le buche: prenderle tutte vuol dire aver saltato al
 momento giusto.
 
-| Bonus | Cosa fa |
-| --- | --- |
-| scudo | si mangia un errore, poi si consuma |
-| scatto | qualche secondo a tutta velocita', passando attraverso gli ostacoli e guadagnando terreno in fretta |
-| calamita | per qualche secondo le monete vengono a te anche dalle altre corsie |
+| Bonus | Cosa fa | Come si vede |
+| --- | --- | --- |
+| scudo | si mangia un errore, poi si consuma | ti affianca un poliziotto, e sparisce quando lo scudo si consuma |
+| scatto | qualche secondo a tutta velocita', passando attraverso gli ostacoli e guadagnando terreno in fretta | sali su una macchinina rossa |
+| calamita | per qualche secondo le monete vengono a te anche dalle altre corsie | compare la scritta **oggi si fattura** |
 
 Il record e' salvato nel browser di questo telefono e non va da nessun'altra parte.
 
@@ -207,6 +207,24 @@ Qualche scelta che vale la pena conoscere prima di mettere le mani al codice:
   con un seme fisso: la strada dev'essere sempre la stessa strada, non un posto
   diverso a ogni partita. I monumenti — Galleria, Duomo, Torre Velasca, Bosco
   Verticale, Arco della Pace — stanno in punti stabiliti, non a caso.
+- **Una buca ha dentro il suo vuoto.** La profondita' si ottiene ritagliando
+  l'imboccatura e mettendoci dentro il fondo, che e' la stessa forma settanta
+  centimetri piu' in basso e quindi proiettata piu' in giu'. Quel che avanza fra
+  le due — la striscia in alto — e' la **parete di fondo**, l'unica che da questa
+  telecamera si vede: quella vicina guarda dall'altra parte. Senza il ritaglio il
+  fondo sborderebbe sull'asfalto *davanti* alla buca e sembrerebbe un'ombra
+  sbavata.
+- **La citta' si disegna in due passate**, prima i palazzi e poi gli arredi.
+  L'ordine di disegno fa da profondita', e un palazzo e' lungo venti metri:
+  ordinando tutto insieme per la sola z d'attacco, un palazzo che comincia poco
+  piu' avanti finisce sopra il cartello della metro che gli sta davanti di lato.
+  Due passate tolgono il problema alla radice, perche' gli arredi stanno sempre
+  piu' vicini alla strada dei muri.
+- **I cartelli della metro sono piu' grandi del vero.** Uno a misura di realta'
+  sarebbe illeggibile gia' a venti metri, e un cartello che non si legge non e'
+  un cartello. Il pannello sta su un piano a z costante, dove la proiezione e'
+  affine: per questo il nome della fermata si puo' scrivere dritto e resta
+  dritto.
 - **Di un monumento si guarda la facciata, non il fianco.** Percio' i monumenti
   sono disegnati sul piano di testa — quello che ci guarda mentre ci si corre
   incontro — e stanno sul filo della strada invece che arretrati come i palazzi:

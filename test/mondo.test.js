@@ -15,6 +15,7 @@ import {
   RITARDO_RIAVVIO,
   PUNTI_PER_MONETA,
   DURATA_SCATTO,
+  GRIDO_CALAMITA,
 } from '../src/mondo.js';
 import { creaBuca, creaMonopattino } from '../src/ostacoli.js';
 import { creaRaccolta, MONETA, SCUDO, SCATTO, CALAMITA } from '../src/percorso.js';
@@ -194,6 +195,8 @@ test('i bonus raccolti fanno quel che promettono', () => {
   const calamita = partitaControllata([], [creaRaccolta(CALAMITA, 30, 1, 1.1)]);
   corri(calamita, 4);
   assert(calamita.calamitaFinoA > calamita.tempo);
+  assertUguale(calamita.avviso.testo, GRIDO_CALAMITA, 'la calamita ha il suo grido');
+  assertUguale(GRIDO_CALAMITA, 'oggi si fattura');
 });
 
 test('lo scatto fa andare piu forte', () => {

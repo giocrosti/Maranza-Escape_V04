@@ -42,11 +42,13 @@ import {
 import {
   conFigura,
   disegnaFigura,
+  disegnaMacchinina,
   disegnaMaranzaDiFronte,
   disegnaMonopattinoDiLato,
   disegnaMonopattinoDiSpalle,
   postiDelBranco,
   CAPPELLI,
+  SEDILE_MACCHININA,
 } from './figure.js';
 import { disegnaFacciataMonumento, disegnaFiancoMonumento, disegnaArco } from './monumenti.js';
 import {
@@ -117,9 +119,14 @@ const COLORI = {
   maranza: '#24262c',
   maranzaLuce: '#474c56',
   borsello: '#8a8f98',
-  buca: '#26282d',
   bucaBordo: '#3c4046',
-  bucaFondo: '#1a1c20',
+  bucaParete: '#26282d',
+  bucaFondo: '#131519',
+  poliziaDivisa: '#2e3f68',
+  poliziaLuce: '#93a2c0',
+  poliziaBerretto: '#eef1f5',
+  poliziaBanda: '#dbe24e',
+  macchinina: '#d8342c',
   moneta: '#f0c246',
   monetaScura: '#b58a1f',
   scudo: '#57b0e6',
@@ -351,20 +358,32 @@ function disegnaAttraversamenti(ctx, vista, scorrimento) {
 
 // --- citta' ----------------------------------------------------------------
 
+/** La citta' si disegna in **due passate**: prima i palazzi, poi tutto quello
+ *  che sta fra loro e la strada — alberi, lampioni, cartelli, auto, tram.
+ *
+ *  Non e' un vezzo. L'ordine di disegno fa da profondita', e un palazzo e'
+ *  lungo venti metri: ordinando tutto insieme per la sola z d'attacco, un
+ *  palazzo che comincia poco piu' avanti finisce sopra un cartello che gli sta
+ *  davanti di lato. Due passate tolgono il problema alla radice, perche' gli
+ *  arredi stanno **sempre** piu' vicini alla strada dei muri. */
 function disegnaCitta(ctx, vista, scorrimento) {
+  const palazzi = [];
   const cose = [];
   const aggiungi = (z, disegna) => cose.push({ z, disegna });
 
   for (const edificio of CITTA.edifici) {
     const z = zRelativo(edificio.z, scorrimento);
     if (z > DISTANZA_VISIBILE || z + edificio.profondita < CODA_ARREDI) continue;
-    aggiungi(z, () => disegnaEdificio(ctx, vista, edificio, z));
+    palazzi.push({ z, disegna: () => disegnaEdificio(ctx, vista, edificio, z) });
   }
 
   const arco = zRelativo(CITTA.arco.z, scorrimento);
   if (arco < DISTANZA_VISIBILE && arco > CODA_ARREDI - 8) {
-    aggiungi(arco, () => disegnaArco(ctx, vista, CITTA.arco, arco, BORDO_MARCIAPIEDE));
+    palazzi.push({ z: arco, disegna: () => disegnaArco(ctx, vista, CITTA.arco, arco, BORDO_MARCIAPIEDE) });
   }
+
+  palazzi.sort((a, b) => b.z - a.z);
+  for (const palazzo of palazzi) palazzo.disegna();
 
   for (const albero of CITTA.alberi) {
     const z = zRelativo(albero.z, scorrimento);
@@ -380,6 +399,11 @@ function disegnaCitta(ctx, vista, scorrimento) {
     const z = zRelativo(palo.z, scorrimento);
     if (z > DISTANZA_VISIBILE || z < CODA_ARREDI) continue;
     aggiungi(z, () => disegnaPaloLinea(ctx, vista, z));
+  }
+  for (const fermata of CITTA.metro) {
+    const z = zRelativo(fermata.z, scorrimento);
+    if (z > 70 || z < CODA_ARREDI) continue;
+    aggiungi(z, () => disegnaSegnaleMetro(ctx, vista, fermata, z));
   }
   for (const auto of CITTA.auto) {
     const z = zRelativo(auto.z, scorrimento);
@@ -562,6 +586,49 @@ function disegnaLampioneInPiedi(ctx, vista, lampione, z) {
   ctx.fill();
 }
 
+/** Il cartello di una fermata della metro: il palo, il quadrato rosso con la M
+ *  bianca e il nome della stazione.
+ *
+ *  Il pannello guarda la telecamera (sta tutto su una z sola), quindi la
+ *  scritta si puo' disegnare dritta con `fillText`: su un piano a z costante la
+ *  proiezione e' affine, e un testo orizzontale resta orizzontale. Il cartello
+ *  sta dalla parte dei palazzi, mai sopra la strada. */
+function disegnaSegnaleMetro(ctx, vista, fermata, z) {
+  const xPalo = fermata.lato * (BORDO_MARCIAPIEDE + 1.9);
+  linea(ctx, vista, [xPalo, 0.16, z], [xPalo, 3.4, z], '#5b5f66', 0.12);
+
+  // il pannello e' generoso: uno a misura di realta' sarebbe illeggibile gia'
+  // a venti metri, e un cartello che non si legge non e' un cartello
+  const dentro = fermata.lato > 0 ? xPalo - 0.4 : xPalo - 2.5;
+  const fuori = dentro + 2.9;
+  const base = 2.4;
+  const alto = 3.25;
+
+  ctx.fillStyle = '#c8332b';
+  testa(ctx, vista, z, dentro, fuori, base, alto);
+
+  const p = proietta(vista, (dentro + fuori) / 2, (base + alto) / 2, z);
+  if (p.scala < 4) return; // troppo lontano perche' si legga qualcosa
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#f6f7f9';
+
+  const pM = proietta(vista, dentro + 0.44, (base + alto) / 2, z);
+  ctx.font = `800 ${0.66 * p.scala}px system-ui, -apple-system, sans-serif`;
+  ctx.fillText('M', pM.x, pM.y);
+
+  const pNome = proietta(vista, dentro + 1.72, (base + alto) / 2, z);
+  let corpo = 0.42 * p.scala;
+  const massima = 2.1 * p.scala;
+  for (let tentativo = 0; tentativo < 10; tentativo += 1) {
+    ctx.font = `700 ${corpo}px system-ui, -apple-system, sans-serif`;
+    if (ctx.measureText(fermata.nome).width <= massima) break;
+    corpo *= 0.9;
+  }
+  ctx.fillText(fermata.nome, pNome.x, pNome.y);
+}
+
 function disegnaPaloLinea(ctx, vista, z) {
   const x = LATO_TRAM * (BORDO_MARCIAPIEDE + 0.4);
   linea(ctx, vista, [x, 0.16, z], [x, 8.2, z], COLORI.palo, 0.2);
@@ -702,10 +769,15 @@ function estremiCorsie(ostacolo) {
   return { sinistra, destra };
 }
 
-/** Il contorno della buca, dal profilo irregolare che si porta dietro.
- *  `gonfia` allarga o stringe la stessa forma: e' cosi' che si ricavano bordo,
- *  vuoto e fondo senza descriverla tre volte. */
-function contornoBuca(ctx, vista, buca, z, sinistra, destra, gonfia, y) {
+/** Quanto e' profonda una buca, in metri. Non conta per il gioco — nella buca
+ *  si cade e basta — ma e' quello che la fa sembrare una buca e non una
+ *  macchia di vernice. */
+const PROFONDITA_BUCA = 0.7;
+
+/** Traccia il contorno irregolare della buca a una certa quota, senza
+ *  riempirlo. `gonfia` allarga o stringe la stessa forma: e' cosi' che si
+ *  ricavano bordo, imboccatura e fondo senza descriverla tre volte. */
+function tracciaContornoBuca(ctx, vista, buca, z, sinistra, destra, gonfia, y) {
   const semiX = ((destra - sinistra) / 2) * gonfia;
   const semiZ = (buca.profondita / 2) * gonfia;
   const centroX = (sinistra + destra) / 2;
@@ -717,18 +789,63 @@ function contornoBuca(ctx, vista, buca, z, sinistra, destra, gonfia, y) {
     else ctx.lineTo(p.x, p.y);
   });
   ctx.closePath();
-  ctx.fill();
 }
 
+/** Una buca con dentro il suo vuoto.
+ *
+ *  Il trucco della profondita' e' tutto nel ritaglio: si limita il disegno
+ *  all'imboccatura e dentro ci si mette il fondo, che e' la stessa forma
+ *  settanta centimetri piu' in basso e quindi proiettata piu' in giu'. Quel
+ *  che avanza fra le due — la striscia in alto — e' la **parete di fondo**
+ *  della buca, l'unica che da questa telecamera si vede davvero: quella
+ *  vicina guarda dall'altra parte, ed e' giusto che resti nascosta.
+ *
+ *  Senza il ritaglio il fondo sborderebbe in basso, sull'asfalto che sta
+ *  *davanti* alla buca, e sembrerebbe un'ombra sbavata. */
 function disegnaBuca(ctx, vista, buca, z) {
   const { sinistra, destra } = estremiCorsie(buca);
+  const imboccatura = 0.9;
 
+  // l'asfalto sbriciolato tutto attorno
   ctx.fillStyle = COLORI.bucaBordo;
-  contornoBuca(ctx, vista, buca, z, sinistra, destra, 1, 0.012);
-  ctx.fillStyle = buca.travolto ? '#33363c' : COLORI.buca;
-  contornoBuca(ctx, vista, buca, z, sinistra, destra, 0.88, 0.014);
-  ctx.fillStyle = COLORI.bucaFondo;
-  contornoBuca(ctx, vista, buca, z + buca.profondita * 0.07, sinistra, destra, 0.62, 0.016);
+  tracciaContornoBuca(ctx, vista, buca, z, sinistra, destra, 1, 0.012);
+  ctx.fill();
+
+  ctx.save();
+  tracciaContornoBuca(ctx, vista, buca, z, sinistra, destra, imboccatura, 0.014);
+  ctx.clip();
+
+  // le pareti, che riempiono tutta l'imboccatura
+  ctx.fillStyle = buca.travolto ? '#3a3d43' : COLORI.bucaParete;
+  ctx.fill();
+
+  // il fondo, alla sua quota
+  ctx.fillStyle = buca.travolto ? '#2b2e34' : COLORI.bucaFondo;
+  tracciaContornoBuca(ctx, vista, buca, z, sinistra, destra, imboccatura * 0.92, -PROFONDITA_BUCA);
+  ctx.fill();
+  ctx.restore();
+
+  // il labbro chiaro sul bordo lontano: e' la luce che entra e si ferma li',
+  // ed e' quello che fa capire in un colpo d'occhio che il buco e' profondo
+  ctx.strokeStyle = 'rgba(150,154,162,0.5)';
+  ctx.lineWidth = Math.max(1, 0.05 * proietta(vista, 0, 0, z).scala);
+  ctx.beginPath();
+  const semiX = ((destra - sinistra) / 2) * imboccatura;
+  const semiZ = (buca.profondita / 2) * imboccatura;
+  const centroX = (sinistra + destra) / 2;
+  let iniziato = false;
+  for (const [ux, uz] of buca.contorno) {
+    if (uz < 0.25) {
+      iniziato = false;
+      continue;
+    }
+    const p = proietta(vista, centroX + ux * semiX, 0.015, z + uz * semiZ);
+    if (!iniziato) {
+      ctx.moveTo(p.x, p.y);
+      iniziato = true;
+    } else ctx.lineTo(p.x, p.y);
+  }
+  ctx.stroke();
 }
 
 function disegnaLampioneCaduto(ctx, vista, lampione, z) {
@@ -899,19 +1016,50 @@ function disegnaCorridore(ctx, mondo) {
   const x = xDiCorsia(corridore.posizione);
   const suolo = proietta(vista, x, 0, 0);
   const p = proietta(vista, x, corridore.y, 0);
+  const inMacchina = scattoAttivo(mondo);
+
+  // Lo scudo non e' una bolla: e' un poliziotto che ti corre a fianco. Si
+  // disegna prima dell'omino, cosi' resta l'omino la figura in primo piano.
+  if (mondo.scudo) disegnaPoliziotto(ctx, vista, corridore, mondo.tempo);
 
   const stretta = 1 / (1 + corridore.y * 0.8);
   ctx.fillStyle = `rgba(0,0,0,${0.32 * stretta})`;
   ctx.beginPath();
-  ctx.ellipse(suolo.x, suolo.y, 0.45 * suolo.scala * stretta, 0.16 * suolo.scala * stretta, 0, 0, Math.PI * 2);
+  ctx.ellipse(
+    suolo.x,
+    suolo.y,
+    (inMacchina ? 0.7 : 0.45) * suolo.scala * stretta,
+    0.16 * suolo.scala * stretta,
+    0,
+    0,
+    Math.PI * 2,
+  );
   ctx.fill();
 
   const posa = abbassato(corridore) ? 'scivolata' : corridore.inAria ? 'salto' : 'corsa';
   const lampeggia = mondo.tempo < mondo.invulnerabileFinoA && Math.floor(mondo.tempo * 12) % 2 === 0;
 
+  // la scia prima della macchinina: passandoci sopra sembrerebbe una gabbia
+  if (inMacchina) disegnaScia(ctx, p, mondo.tempo);
+
   ctx.globalAlpha = lampeggia ? 0.55 : 1;
   conFigura(ctx, p.x, p.y, p.scala, () => {
     if (corridore.inciampo > 0) ctx.rotate(Math.sin(corridore.inciampo * 40) * 0.12);
+
+    if (inMacchina) {
+      // Durante lo scatto non si corre: si sale su una macchinina rossa. Le
+      // gambe stanno dentro, quindi la posa e' quella seduta e parte dal
+      // sedile, non dai piedi.
+      disegnaMacchinina(ctx, { corpo: COLORI.macchinina, tempo: mondo.tempo });
+      disegnaFigura(ctx, {
+        colore: COLORI.omino,
+        luce: COLORI.ominoOmbra,
+        posa: 'seduto',
+        base: SEDILE_MACCHININA,
+      });
+      return;
+    }
+
     disegnaFigura(ctx, {
       colore: COLORI.omino,
       luce: COLORI.ominoOmbra,
@@ -920,18 +1068,39 @@ function disegnaCorridore(ctx, mondo) {
     });
   });
   ctx.globalAlpha = 1;
-
-  if (mondo.scudo) disegnaBollaScudo(ctx, p, mondo.tempo);
-  if (scattoAttivo(mondo)) disegnaScia(ctx, p, mondo.tempo);
 }
 
-function disegnaBollaScudo(ctx, p, tempo) {
-  const raggio = 1.15 * p.scala;
-  ctx.strokeStyle = `rgba(87,176,230,${0.55 + 0.25 * Math.sin(tempo * 6)})`;
-  ctx.lineWidth = Math.max(1.5, 0.06 * p.scala);
+/** Il poliziotto dello scudo: corre a fianco, dalla parte dove c'e' piu'
+ *  strada, un passo fuori sincrono con l'omino perche' non sembrino due copie.
+ *  Sparisce nell'istante in cui lo scudo si consuma. */
+function disegnaPoliziotto(ctx, vista, corridore, tempo) {
+  const lato = corridore.posizione < 1.5 ? 1 : -1;
+  const x = xDiCorsia(corridore.posizione) + lato * 1.25;
+  const zAffianco = -0.35;
+  const suolo = proietta(vista, x, 0, zAffianco);
+
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
   ctx.beginPath();
-  ctx.ellipse(p.x, p.y - raggio * 0.75, raggio * 0.72, raggio, 0, 0, Math.PI * 2);
-  ctx.stroke();
+  ctx.ellipse(suolo.x, suolo.y, 0.42 * suolo.scala, 0.15 * suolo.scala, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  conFigura(ctx, suolo.x, suolo.y, suolo.scala, () => {
+    disegnaFigura(ctx, {
+      colore: COLORI.poliziaDivisa,
+      luce: COLORI.poliziaLuce,
+      fase: corridore.fase + 0.9,
+      posa: 'corsa',
+      cappello: COLORI.poliziaBerretto,
+      banda: COLORI.poliziaBanda,
+    });
+  });
+
+  // il lampeggiante blu sul berretto, perche' si veda anche di sfuggita
+  const sopra = proietta(vista, x, 2.02, zAffianco);
+  ctx.fillStyle = `rgba(90,150,235,${0.28 + 0.3 * Math.sin(tempo * 9)})`;
+  ctx.beginPath();
+  ctx.arc(sopra.x, sopra.y, 0.1 * sopra.scala, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function disegnaScia(ctx, p, tempo) {

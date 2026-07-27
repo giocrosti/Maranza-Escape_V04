@@ -60,6 +60,7 @@ export function disegnaFigura(ctx, opzioni) {
     coltello = false,
     cappello = null,
     borsello = null,
+    banda = null,
     base = 0,
   } = opzioni;
 
@@ -68,6 +69,12 @@ export function disegnaFigura(ctx, opzioni) {
 
   if (posa === 'scivolata') {
     disegnaAccosciato(ctx, colore, luce, cappello);
+    ctx.restore();
+    return;
+  }
+
+  if (posa === 'seduto') {
+    disegnaSeduto(ctx, colore, luce, cappello);
     ctx.restore();
     return;
   }
@@ -128,6 +135,13 @@ export function disegnaFigura(ctx, opzioni) {
   ctx.fillStyle = luce;
   riquadroTondo(ctx, -0.25, spalla - 0.12, 0.5, 0.16, 0.07);
   ctx.fill();
+
+  // la banda rifrangente sulla schiena, per chi la divisa ce l'ha
+  if (banda) {
+    ctx.fillStyle = banda;
+    riquadroTondo(ctx, -0.25, anca + 0.28, 0.5, 0.11, 0.04);
+    ctx.fill();
+  }
 
   if (borsello) borselloDiSpalle(ctx, spalla, anca, borsello);
 
@@ -296,6 +310,106 @@ function disegnaAccosciato(ctx, colore, luce, cappello) {
   ctx.fill();
 
   if (cappello) cappelloDiSpalle(ctx, 0.65, cappello);
+}
+
+/** Seduto: busto, braccia in avanti sul volante e testa. Le gambe non si
+ *  disegnano perche' stanno dentro la macchinina, e da dietro non si vedono.
+ *  L'origine e' il sedile, non il suolo: la mette a posto chi chiama. */
+function disegnaSeduto(ctx, colore, luce, cappello) {
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  const spalla = 0.54;
+
+  // braccia tese avanti, verso il volante
+  ctx.strokeStyle = colore;
+  ctx.lineWidth = 0.13;
+  for (const segno of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(segno * 0.22, spalla);
+    ctx.lineTo(segno * 0.3, spalla - 0.16);
+    ctx.lineTo(segno * 0.26, spalla - 0.3);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = colore;
+  riquadroTondo(ctx, -0.25, 0, 0.5, spalla + 0.22, 0.17);
+  ctx.fill();
+  ctx.fillStyle = luce;
+  riquadroTondo(ctx, -0.25, spalla - 0.12, 0.5, 0.16, 0.07);
+  ctx.fill();
+
+  ctx.fillStyle = colore;
+  ctx.beginPath();
+  ctx.arc(0, spalla + 0.25, 0.17, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = luce;
+  ctx.beginPath();
+  ctx.arc(-0.05, spalla + 0.3, 0.09, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (cappello) cappelloDiSpalle(ctx, spalla + 0.25, cappello);
+}
+
+/** La macchinina rossa dello scatto, vista di spalle: un giocattolo a pedali,
+ *  con le ruote che sporgono ai lati, il musetto tondo e l'alettone. L'origine
+ *  e' a terra, in mezzo alle ruote.
+ *
+ *  Il posto di guida sta a 0,42 m: e' li' che va messo il busto di chi ci sale,
+ *  ed e' la ragione per cui la posa 'seduto' parte dal sedile e non dai piedi. */
+export const SEDILE_MACCHININA = 0.42;
+
+export function disegnaMacchinina(ctx, { corpo = '#d8342c', tempo = 0 } = {}) {
+  const sobbalzo = Math.sin(tempo * 22) * 0.012;
+
+  ctx.save();
+  ctx.translate(0, sobbalzo);
+
+  // ruote, grosse e sporgenti come su un giocattolo
+  ctx.fillStyle = '#1b1d21';
+  for (const segno of [-1, 1]) {
+    ctx.beginPath();
+    ctx.ellipse(segno * 0.6, 0.16, 0.14, 0.17, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#c9ccd1';
+    ctx.beginPath();
+    ctx.ellipse(segno * 0.6, 0.16, 0.06, 0.075, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#1b1d21';
+  }
+
+  // scocca, larga abbastanza da contenere chi ci sta dentro
+  ctx.fillStyle = corpo;
+  riquadroTondo(ctx, -0.56, 0.1, 1.12, 0.44, 0.13);
+  ctx.fill();
+  // il bordo dell'abitacolo, piu' stretto
+  riquadroTondo(ctx, -0.4, 0.44, 0.8, 0.14, 0.06);
+  ctx.fill();
+
+  // paraurti e fanali posteriori
+  ctx.fillStyle = '#f0f2f5';
+  riquadroTondo(ctx, -0.52, 0.12, 1.04, 0.07, 0.03);
+  ctx.fill();
+  ctx.fillStyle = '#ffd24a';
+  for (const segno of [-1, 1]) {
+    riquadroTondo(ctx, segno * 0.4 - 0.07, 0.31, 0.14, 0.09, 0.03);
+    ctx.fill();
+  }
+
+  // l'abitacolo scuro dove sta seduto
+  ctx.fillStyle = 'rgba(30,32,38,0.55)';
+  riquadroTondo(ctx, -0.32, 0.42, 0.64, 0.13, 0.05);
+  ctx.fill();
+
+  // alettone da macchinina
+  ctx.fillStyle = corpo;
+  riquadroTondo(ctx, -0.42, 0.58, 0.84, 0.06, 0.025);
+  ctx.fill();
+  for (const segno of [-1, 1]) {
+    ctx.fillRect(segno * 0.3 - 0.025, 0.52, 0.05, 0.08);
+  }
+
+  ctx.restore();
 }
 
 // --- di fronte -------------------------------------------------------------

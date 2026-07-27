@@ -17,7 +17,7 @@ Uso:
 
 import sys
 from functools import partial
-from http.server import SimpleHTTPRequestHandler, test
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer, test
 from pathlib import Path
 
 INDIRIZZO = "127.0.0.1"
@@ -45,4 +45,12 @@ if __name__ == "__main__":
     print(f"  Test:  http://localhost:{porta}/tests.html")
     print("  Raggiungibile solo da questo computer.\n")
 
-    test(HandlerClass=partial(SenzaCache, directory=radice), port=porta, bind=INDIRIZZO)
+    # ThreadingHTTPServer e non quello normale: la pagina dei test scarica una
+    # trentina di file tutti insieme, e un server che ne serve uno per volta li
+    # fa scadere. I test fallivano per colpa del server, non del gioco.
+    test(
+        HandlerClass=partial(SenzaCache, directory=radice),
+        ServerClass=ThreadingHTTPServer,
+        port=porta,
+        bind=INDIRIZZO,
+    )
