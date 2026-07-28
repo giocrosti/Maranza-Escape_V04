@@ -32,28 +32,30 @@ export const SCUDO = 'scudo';
 export const SCATTO = 'scatto';
 export const CALAMITA = 'calamita';
 export const MADONNINA = 'madonnina';
+export const SPRITZ = 'spritz';
 
 export const BONUS = [SCUDO, SCATTO, CALAMITA];
 
 /** Ogni quanti metri, all'incirca, appare la Madonnina — e dopo quanti la
  *  prima. E' rarissima di proposito: dieci secondi di corsa indistruttibile a
- *  velocita' tripla devono restare un avvenimento, non un rifornimento. A
- *  regime capita una volta ogni un chilometro e mezzo abbondante, cioe' un paio
- *  di minuti buoni di corsa. */
-const METRI_FRA_LE_MADONNINE = 1700;
-const PRIMA_MADONNINA = 900;
+ *  velocita' tripla devono restare un avvenimento, non un rifornimento. */
+const METRI_FRA_LE_MADONNINE = 2430;
+const PRIMA_MADONNINA = 1290;
 
 /** Il primo ostacolo non arriva subito: i primi metri servono a capire che si
  *  sta correndo e che si puo' cambiare corsia. */
 export const PRIMO_OSTACOLO = 70;
 
 /** Distanza minima fra due ostacoli, in metri. Un salto lungo copre una
- *  quindicina di metri alla velocita' massima: sotto questa soglia si
- *  atterrerebbe dentro l'ostacolo successivo. */
-export const SPAZIO_MINIMO = 26;
+ *  ventina di metri alla velocita' massima: sotto questa soglia si
+ *  atterrerebbe dentro l'ostacolo successivo, e non ci sarebbe modo di
+ *  passare. E' il pavimento sotto cui la difficolta' non puo' scendere. */
+export const SPAZIO_MINIMO = 30;
 
-/** Dopo quanti metri il gioco e' alla difficolta' massima. */
-const METRI_PER_DIFFICOLTA_PIENA = 1400;
+/** Dopo quanti metri il gioco e' alla difficolta' massima. Lungo: la corsa
+ *  deve continuare a stringere per un paio di minuti buoni, non appiattirsi
+ *  dopo il primo. */
+const METRI_PER_DIFFICOLTA_PIENA = 2200;
 
 /** Ogni quanti metri, all'incirca, si trova un bonus. */
 const METRI_FRA_I_BONUS = 260;
@@ -63,12 +65,17 @@ const METRI_FRA_I_BONUS = 260;
 const CODA = 14;
 
 export function creaPercorso(rng) {
+  const caso = rng || (() => 0.5);
+  const primaMadonnina = PRIMA_MADONNINA + caso() * 715;
   return {
     ostacoli: [],
     raccolte: [],
     prossimoZ: PRIMO_OSTACOLO,
-    prossimoBonusZ: PRIMO_OSTACOLO + 120 + (rng ? rng() * 80 : 40),
-    prossimaMadonninaZ: PRIMA_MADONNINA + (rng ? rng() * 500 : 250),
+    prossimoBonusZ: PRIMO_OSTACOLO + 120 + caso() * 80,
+    prossimaMadonninaZ: primaMadonnina,
+    // Il primo spritz sta a meta' strada verso la prima Madonnina; da li' in
+    // poi ce n'e' sempre uno esatto in mezzo a due Madonnine consecutive.
+    prossimoSpritzZ: primaMadonnina / 2,
   };
 }
 
@@ -114,10 +121,13 @@ function aggiungiPezzo(percorso, velocita, rng) {
   aggiungiRaccolte(percorso, gruppo, rng, difficolta);
 
   // Piu' si corre veloce, piu' spazio serve fra un ostacolo e l'altro solo per
-  // avere il tempo di vederlo. Il margine in piu' si assottiglia con la
-  // difficolta': e' il modo in cui il gioco stringe.
-  const base = Math.max(SPAZIO_MINIMO, velocita * 1.15);
-  percorso.prossimoZ = z + spinta + base + (1 - difficolta) * 15 + rng() * 10;
+  // avere il tempo di vederlo — ma quel margine si assottiglia man mano che si
+  // va avanti, ed e' il modo in cui il gioco stringe. All'inizio passano
+  // cinque secondi buoni fra un ostacolo e l'altro, alla fine poco piu' di
+  // uno: sotto non si scende, perche' sotto non si passerebbe.
+  const respiro = velocita * (1.25 - difficolta * 0.45);
+  const base = Math.max(SPAZIO_MINIMO, respiro);
+  percorso.prossimoZ = z + spinta + base + (1 - difficolta) * 18 + rng() * 10;
   return percorso;
 }
 
@@ -179,8 +189,20 @@ function aggiungiRaccolte(percorso, gruppo, rng, difficolta) {
 
   if (primo.z > percorso.prossimaMadonninaZ) {
     percorso.raccolte.push(bonusDopo(primo, gruppo, rng, MADONNINA));
-    percorso.prossimaMadonninaZ = primo.z + METRI_FRA_LE_MADONNINE + rng() * 600;
+    percorso.prossimaMadonninaZ = primo.z + METRI_FRA_LE_MADONNINE + rng() * 860;
+    // Lo spritz cade esattamente a meta' fra questa Madonnina e la prossima:
+    // e' il rifornimento di meta' viaggio, e sta li' perche' chi ha sbagliato
+    // due volte sappia dove guardare.
+    percorso.prossimoSpritzZ = (primo.z + percorso.prossimaMadonninaZ) / 2;
     // la Madonnina non si divide la scena con nient'altro
+    return;
+  }
+
+  if (primo.z > percorso.prossimoSpritzZ) {
+    percorso.raccolte.push(bonusDopo(primo, gruppo, rng, SPRITZ));
+    // il prossimo lo fissera' la prossima Madonnina; intanto si mette fuori
+    // portata, cosi' non ne escono due di fila
+    percorso.prossimoSpritzZ = Infinity;
     return;
   }
 

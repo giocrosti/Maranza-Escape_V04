@@ -9,6 +9,7 @@ import {
   MONETA,
   BONUS,
   MADONNINA,
+  SPRITZ,
 } from '../src/percorso.js';
 import {
   BUCA,
@@ -131,18 +132,56 @@ test('quel che e alle spalle viene buttato via, quel che e davanti no', () => {
 
 test('la Madonnina e un avvenimento, non un rifornimento', () => {
   for (const seme of [3, 11, 77]) {
-    const percorso = percorsoLungo(3000, seme);
+    const percorso = percorsoLungo(5000, seme);
     const madonnine = percorso.raccolte.filter((r) => r.tipo === MADONNINA).sort((a, b) => a.z - b.z);
-    assert(madonnine.length <= 2, `${madonnine.length} Madonnine in tre chilometri: troppe`);
-    assert(madonnine.length >= 1, 'in tre chilometri almeno una deve uscire');
-    assert(madonnine[0].z > 850, `la prima arriva gia a ${madonnine[0].z.toFixed(0)} m`);
+    assert(madonnine.length <= 2, `${madonnine.length} Madonnine in cinque chilometri: troppe`);
+    assert(madonnine.length >= 1, 'in cinque chilometri almeno una deve uscire');
+    assert(madonnine[0].z > 1250, `la prima arriva gia a ${madonnine[0].z.toFixed(0)} m`);
     for (let i = 1; i < madonnine.length; i += 1) {
-      assert(
-        madonnine[i].z - madonnine[i - 1].z > 1600,
-        'due Madonnine troppo vicine fra loro',
-      );
+      assert(madonnine[i].z - madonnine[i - 1].z > 2300, 'due Madonnine troppo vicine fra loro');
     }
   }
+});
+
+test('fra due Madonnine c e uno spritz, e uno solo', () => {
+  for (const seme of [3, 11, 77, 404]) {
+    const percorso = percorsoLungo(6000, seme);
+    const madonnine = percorso.raccolte.filter((r) => r.tipo === MADONNINA).map((r) => r.z).sort((a, b) => a - b);
+    const spritz = percorso.raccolte.filter((r) => r.tipo === SPRITZ).map((r) => r.z).sort((a, b) => a - b);
+    assert(spritz.length >= 1, `nessuno spritz in sei chilometri (seme ${seme})`);
+
+    // uno prima della prima Madonnina, e poi uno per ogni intervallo
+    assert(spritz[0] < madonnine[0], 'il primo spritz arriva prima della prima Madonnina');
+    for (let i = 1; i < madonnine.length; i += 1) {
+      const dentro = spritz.filter((z) => z > madonnine[i - 1] && z < madonnine[i]);
+      assertUguale(dentro.length, 1, `fra due Madonnine ci sono ${dentro.length} spritz invece di uno`);
+    }
+    // e mai due di fila senza una Madonnina in mezzo
+    for (let i = 1; i < spritz.length; i += 1) {
+      const madonninaInMezzo = madonnine.some((z) => z > spritz[i - 1] && z < spritz[i]);
+      assert(madonninaInMezzo, 'due spritz di fila senza Madonnina in mezzo');
+    }
+  }
+});
+
+test('piu si va avanti, meno spazio c e fra un ostacolo e l altro', () => {
+  const percorso = percorsoLungo(4000);
+  const elenco = gruppi(percorso);
+  const distanze = [];
+  for (let i = 1; i < elenco.length; i += 1) {
+    distanze.push({ z: elenco[i].z, spazio: elenco[i].z - elenco[i - 1].z });
+  }
+  const media = (da, a) => {
+    const scelte = distanze.filter((d) => d.z >= da && d.z < a);
+    return scelte.reduce((somma, d) => somma + d.spazio, 0) / scelte.length;
+  };
+  const inizio = media(0, 500);
+  const fine = media(3000, 4000);
+  assert(
+    fine < inizio * 0.75,
+    `all inizio ${inizio.toFixed(1)} m fra gli ostacoli, alla fine ${fine.toFixed(1)}: non stringe abbastanza`,
+  );
+  assert(fine >= SPAZIO_MINIMO, 'ma non deve scendere sotto il minimo, o non si passerebbe');
 });
 
 test('i monopattini vengono verso di te, e nascono piu avanti per compensare', () => {

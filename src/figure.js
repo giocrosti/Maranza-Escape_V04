@@ -485,6 +485,75 @@ export function disegnaMadonnina(ctx, { tempo = 0 } = {}) {
   ctx.stroke();
 }
 
+/** Un bicchiere da spritz pieno, alto un metro con l'origine sotto il piede:
+ *  calice, ghiaccio, fetta d'arancia sul bordo e cannuccia. E' il rifornimento
+ *  di meta' viaggio, e si deve riconoscere per quello che e' senza scritte. */
+export function disegnaSpritz(ctx, { tempo = 0 } = {}) {
+  const VETRO = 'rgba(236,244,250,0.4)';
+  const ARANCIO = '#e8722a';
+  const ARANCIO_CHIARO = '#f4a24a';
+  const GHIACCIO = 'rgba(255,255,255,0.6)';
+
+  // piede e stelo
+  ctx.fillStyle = VETRO;
+  ctx.beginPath();
+  ctx.ellipse(0, 0.04, 0.17, 0.045, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillRect(-0.025, 0.04, 0.05, 0.28);
+
+  // coppa: si allarga verso l'alto
+  const coppa = (dentro) => {
+    const stretta = dentro ? 0.02 : 0;
+    ctx.beginPath();
+    ctx.moveTo(-0.13 + stretta, 0.32);
+    ctx.quadraticCurveTo(-0.26 + stretta, 0.5, -0.25 + stretta, 0.84);
+    ctx.lineTo(0.25 - stretta, 0.84);
+    ctx.quadraticCurveTo(0.26 - stretta, 0.5, 0.13 - stretta, 0.32);
+    ctx.closePath();
+  };
+  ctx.fillStyle = VETRO;
+  coppa(false);
+  ctx.fill();
+
+  // lo spritz dentro, fino a due dita dal bordo
+  ctx.save();
+  coppa(true);
+  ctx.clip();
+  ctx.fillStyle = ARANCIO;
+  ctx.fillRect(-0.3, 0.34, 0.6, 0.4);
+  ctx.fillStyle = ARANCIO_CHIARO;
+  ctx.fillRect(-0.3, 0.7, 0.6, 0.05);
+  // due cubetti di ghiaccio che ballano piano
+  ctx.fillStyle = GHIACCIO;
+  for (const [dx, dy, giro] of [[-0.09, 0.46, 0.3], [0.07, 0.58, -0.5]]) {
+    ctx.save();
+    ctx.translate(dx, dy + Math.sin(tempo * 2 + dx * 10) * 0.012);
+    ctx.rotate(giro);
+    ctx.fillRect(-0.06, -0.06, 0.12, 0.12);
+    ctx.restore();
+  }
+  ctx.restore();
+
+  // la fetta d'arancia incastrata sul bordo
+  ctx.fillStyle = ARANCIO_CHIARO;
+  ctx.beginPath();
+  ctx.arc(0.22, 0.84, 0.11, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#fbe0b6';
+  ctx.beginPath();
+  ctx.arc(0.22, 0.84, 0.055, 0, Math.PI * 2);
+  ctx.fill();
+
+  // cannuccia
+  ctx.strokeStyle = '#f0f3f7';
+  ctx.lineWidth = 0.035;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-0.08, 0.42);
+  ctx.lineTo(-0.16, 1);
+  ctx.stroke();
+}
+
 function stella(ctx, cx, cy, raggio) {
   ctx.beginPath();
   for (let i = 0; i < 10; i += 1) {

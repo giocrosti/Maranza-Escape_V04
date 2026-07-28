@@ -53,7 +53,7 @@ grandi.
 
 - si parte con 16 metri di vantaggio;
 - ogni errore ne costa un terzo esatto, e ti fa barcollare;
-- **il terreno perso non si riprende.**
+- **il terreno perso non si riprende**, se non con uno spritz.
 
 Quindi al terzo errore sei a zero e ti prendono, e non c'e' corsa pulita che tenga.
 (Prima il distacco si riguadagnava correndo bene, e capitava di sbagliare cinque
@@ -71,11 +71,33 @@ momento giusto.
 | scudo | si mangia un errore, poi si consuma | ti affianca un poliziotto, e sparisce quando lo scudo si consuma |
 | scatto | qualche secondo a tutta velocita', passando attraverso gli ostacoli | sali su una macchinina rossa, e compare la scritta **car sharing** |
 | calamita | per qualche secondo le monete vengono a te anche dalle altre corsie | e' una carta di credito, e compare la scritta **oggi si fattura** |
+| **spritz** | ti ridà una vita: cancella un errore e ti restituisce il terreno perso | un bicchiere pieno, con la fetta d'arancia |
 | **Madonnina** | dieci secondi al triplo della velocita' — il doppio della macchinina — e non ti tocca niente | il gioco si ferma due secondi, lei appare in mezzo ai raggi, poi si riparte con l'aureola |
 
-La Madonnina e' rarissima: la prima non prima di novecento metri, e poi una ogni
-chilometro e mezzo abbondante — un paio di minuti di corsa. E' la statua in cima alla
-guglia maggiore del Duomo, e per quei dieci secondi non ti prende nessuno.
+La Madonnina e' rarissima: la prima non prima di milleduecento metri, e poi una ogni
+due chilometri e mezzo. E' la statua in cima alla guglia maggiore del Duomo, e per
+quei dieci secondi non ti prende nessuno.
+
+Lo **spritz** sta esattamente a meta' strada fra una Madonnina e la successiva (e il
+primo a meta' strada verso la prima): e' il rifornimento di meta' viaggio, ed e'
+l'unica cosa al mondo che restituisce terreno gia' perso. Preso senza errori da
+recuperare non regala niente — salute e via.
+
+### E si stringe
+
+Piu' si va avanti, piu' il gioco stringe, e su due fronti insieme:
+
+| dopo | velocita' | secondi fra un ostacolo e l'altro |
+| --- | --- | --- |
+| 200 m | 13,6 m/s | 3,9 |
+| 1 km | 21 m/s | 2,2 |
+| 2 km | 27,6 m/s | 1,4 |
+| 3 km e oltre | 30 m/s | 1,2 |
+
+La velocita' cresce per due minuti buoni prima di toccare il tetto, e la distanza fra
+gli ostacoli si accorcia fino ai trenta metri di `SPAZIO_MINIMO`. Sotto non si
+scende, ed e' una soglia con una ragione precisa: un salto alla velocita' massima
+copre diciannove metri, e con meno spazio si atterrerebbe dentro l'ostacolo dopo.
 
 Il record e' salvato nel browser di questo telefono e non va da nessun'altra parte.
 

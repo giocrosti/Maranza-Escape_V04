@@ -53,8 +53,16 @@ export function avanzaInseguitori(inseguitori, dt, { velocita = 0 } = {}) {
   return inseguitori;
 }
 
+/** Li rimanda indietro di una tacca: e' lo spritz, l'unica cosa al mondo che
+ *  restituisce terreno gia' perso. Non si va oltre il vantaggio di partenza. */
+export function restituisci(inseguitori, metri = PENALITA_ERRORE) {
+  inseguitori.distacco = Math.min(DISTACCO_INIZIALE, inseguitori.distacco + metri);
+  inseguitori.agitazione = 0;
+  return inseguitori.distacco;
+}
+
 /** Li fa guadagnare terreno: e' quello che succede a ogni errore, ed e'
- *  l'unica cosa che muove il distacco. Ritorna il distacco che resta. */
+ *  quasi l'unica cosa che muove il distacco. Ritorna il distacco che resta. */
 export function avvicina(inseguitori, metri = PENALITA_ERRORE) {
   // sotto un centesimo di metro e' zero: e' il terzo errore, e le divisioni
   // non devono lasciare briciole che tengono in vita una partita finita

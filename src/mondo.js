@@ -20,12 +20,14 @@ import {
   SCATTO,
   CALAMITA,
   MADONNINA,
+  SPRITZ,
 } from './percorso.js';
 import {
   creaInseguitori,
   azzeraInseguitori,
   avanzaInseguitori,
   avvicina,
+  restituisci,
   hannoPreso,
   ERRORI_PER_PERDERE,
 } from './inseguitori.js';
@@ -42,6 +44,7 @@ export const PUNTI_PER_MONETA = 25;
  *  che chiude la partita. */
 export const GRIDO_CALAMITA = 'oggi si fattura';
 export const GRIDO_SCATTO = 'car sharing';
+export const GRIDO_SPRITZ = 'spritz e si riparte';
 export const GRIDO_SCONFITTA = 'Ti hanno fatto il portafoglio';
 
 export const DURATA_SCATTO = 4.5;
@@ -339,6 +342,15 @@ function risolviOstacoli(mondo) {
   }
 }
 
+/** Restituisce un errore: e' quel che fa lo spritz. Ritorna false se non
+ *  c'era niente da restituire, cioe' se non si era ancora sbagliato. */
+export function recuperaErrore(mondo) {
+  if (mondo.errori <= 0) return false;
+  mondo.errori -= 1;
+  restituisci(mondo.inseguitori);
+  return true;
+}
+
 /** Un errore. Ritorna true se e' costato davvero terreno. */
 export function subisciErrore(mondo, causa) {
   if (mondo.tempo < mondo.invulnerabileFinoA) return false;
@@ -410,6 +422,11 @@ function prendiRaccolta(mondo, raccolta) {
   if (raccolta.tipo === CALAMITA) {
     mondo.calamitaFinoA = mondo.tempo + DURATA_CALAMITA;
     mondo.avviso = { testo: GRIDO_CALAMITA, tempo: mondo.tempo };
+    return;
+  }
+  if (raccolta.tipo === SPRITZ) {
+    const rimborsato = recuperaErrore(mondo);
+    mondo.avviso = { testo: rimborsato ? GRIDO_SPRITZ : 'salute', tempo: mondo.tempo };
     return;
   }
   if (raccolta.tipo === MADONNINA) {

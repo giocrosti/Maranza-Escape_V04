@@ -42,9 +42,11 @@ export const QUOTA_A_TERRA = 0.35;
  *  "sopra" un ostacolo. */
 export const SEMI_PROFONDITA_OMINO = 0.35;
 
-/** Velocita' di corsa, in metri al secondo, e sua crescita col tempo. */
+/** Velocita' di corsa, in metri al secondo, e sua crescita col tempo.
+ *  Il tetto e' alto e ci si arriva in due minuti: prima si toccava il massimo
+ *  dopo un minuto e da li' in poi la corsa non cambiava piu'. */
 export const VELOCITA_INIZIALE = 11;
-export const VELOCITA_MASSIMA = 21;
+export const VELOCITA_MASSIMA = 30;
 /** Metri al secondo guadagnati per ogni secondo di corsa. */
 export const ACCELERAZIONE = 0.16;
 

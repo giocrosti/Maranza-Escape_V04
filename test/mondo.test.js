@@ -24,10 +24,11 @@ import {
   DURATA_APPARIZIONE,
   GRIDO_CALAMITA,
   GRIDO_SCATTO,
+  GRIDO_SPRITZ,
   GRIDO_SCONFITTA,
 } from '../src/mondo.js';
 import { creaBuca, creaMonopattino } from '../src/ostacoli.js';
-import { creaRaccolta, MONETA, SCUDO, SCATTO, CALAMITA, MADONNINA } from '../src/percorso.js';
+import { creaRaccolta, MONETA, SCUDO, SCATTO, CALAMITA, MADONNINA, SPRITZ } from '../src/percorso.js';
 import { DISTACCO_INIZIALE, PENALITA_ERRORE, ERRORI_PER_PERDERE } from '../src/inseguitori.js';
 import { DT_MASSIMO, VELOCITA_MASSIMA } from '../src/costanti.js';
 import { rngFinto } from './rng-finto.js';
@@ -313,6 +314,55 @@ test('in apparizione i comandi non arrivano all omino', () => {
   assertUguale(mondo.stato, 'apparizione');
   assertUguale(comando(mondo, 'destra'), false);
   assertUguale(puoRiavviare(mondo), false, 'un tocco durante l apparizione non ricomincia la partita');
+});
+
+test('lo spritz ridà una vita', () => {
+  const mondo = partitaControllata([], [creaRaccolta(SPRITZ, 30, 1, 1.1)]);
+  subisciErrore(mondo, 'buca');
+  const dopoErrore = mondo.inseguitori.distacco;
+  assertUguale(mondo.errori, 1);
+
+  corri(mondo, 4);
+  assertUguale(mondo.errori, 0, 'lo spritz cancella un errore');
+  assertQuasi(mondo.inseguitori.distacco, dopoErrore + PENALITA_ERRORE, 1e-9, 'e restituisce il terreno');
+  assertUguale(mondo.avviso.testo, GRIDO_SPRITZ);
+});
+
+test('con lo spritz si sopravvive a un quarto errore', () => {
+  const mondo = partitaControllata([], [creaRaccolta(SPRITZ, 30, 1, 1.1)]);
+  subisciErrore(mondo, 'buca');
+  mondo.invulnerabileFinoA = 0;
+  subisciErrore(mondo, 'buca');
+  corri(mondo, 4); // qui raccoglie lo spritz e torna a un errore solo
+
+  mondo.invulnerabileFinoA = 0;
+  subisciErrore(mondo, 'buca');
+  assertUguale(mondo.stato, 'in-gioco', 'con lo spritz il terzo errore non e ancora fatale');
+  mondo.invulnerabileFinoA = 0;
+  subisciErrore(mondo, 'buca');
+  assertUguale(mondo.stato, 'finita', 'ma il quarto si');
+});
+
+test('lo spritz preso da chi non ha sbagliato non regala niente', () => {
+  const mondo = partitaControllata([], [creaRaccolta(SPRITZ, 30, 1, 1.1)]);
+  corri(mondo, 4);
+  assertUguale(mondo.errori, 0);
+  assertUguale(mondo.inseguitori.distacco, DISTACCO_INIZIALE, 'non si va oltre il vantaggio di partenza');
+  assertUguale(mondo.avviso.testo, 'salute');
+});
+
+test('piu si corre piu si va veloce, e per un pezzo', () => {
+  const mondo = partitaControllata();
+  corri(mondo, 10);
+  const dopoDieciSecondi = mondo.velocita;
+  corri(mondo, 50);
+  const dopoUnMinuto = mondo.velocita;
+  corri(mondo, 70);
+  const dopoDueMinuti = mondo.velocita;
+
+  assert(dopoUnMinuto > dopoDieciSecondi + 5, 'nel primo minuto deve accelerare parecchio');
+  assert(dopoDueMinuti > dopoUnMinuto + 3, 'e al secondo minuto non deve essersi gia fermata');
+  assertQuasi(dopoDueMinuti, VELOCITA_MASSIMA, 0.01, 'per arrivare al tetto ci vogliono due minuti');
 });
 
 test('la sconfitta ha la sua scritta', () => {

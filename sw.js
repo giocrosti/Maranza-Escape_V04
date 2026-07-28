@@ -9,7 +9,7 @@
  * la versione vecchia.
  */
 
-const VERSIONE = 'maranza-escape-v7';
+const VERSIONE = 'maranza-escape-v8';
 
 const FILE = [
   './',

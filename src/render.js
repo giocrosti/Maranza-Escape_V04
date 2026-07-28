@@ -24,7 +24,7 @@ import {
 } from './proiezione.js';
 import { SEMI_STRADA, LARGHEZZA_CORSIA, DISTANZA_VISIBILE, ALTEZZA_OMINO } from './costanti.js';
 import { BUCA, AIUOLA, MONOPATTINO, PONTICELLO, ARCO, ALTEZZA_PONTICELLO, corsieOstacolo } from './ostacoli.js';
-import { MONETA, SCUDO, SCATTO, CALAMITA, MADONNINA } from './percorso.js';
+import { MONETA, SCUDO, SCATTO, CALAMITA, MADONNINA, SPRITZ } from './percorso.js';
 import { abbassato } from './corridore.js';
 import { minaccia, DISTACCO_INIZIALE } from './inseguitori.js';
 import { areaPausa, areaIstruzioni, areaCasa } from './pulsanti.js';
@@ -44,6 +44,7 @@ import {
   disegnaFigura,
   disegnaMacchinina,
   disegnaMadonnina,
+  disegnaSpritz,
   disegnaMaranzaDiFronte,
   disegnaMonopattinoDiLato,
   disegnaMonopattinoDiFronte,
@@ -142,6 +143,7 @@ const COLORI = {
   scatto: '#f4813c',
   calamita: '#4f7ec4',
   madonnina: '#e6c150',
+  spritz: '#e8722a',
   testo: '#f7f8fa',
 };
 
@@ -150,6 +152,7 @@ const COLORI_BONUS = {
   scatto: COLORI.scatto,
   calamita: COLORI.calamita,
   madonnina: COLORI.madonnina,
+  spritz: COLORI.spritz,
 };
 
 export function disegnaMondo(ctx, mondo, interfaccia = {}) {
@@ -1164,6 +1167,11 @@ function disegnaRaccolta(ctx, vista, raccolta, z, tempo) {
     return;
   }
 
+  if (raccolta.tipo === SPRITZ) {
+    conFigura(ctx, p.x, p.y + raggio * 0.9, raggio * 1.9, () => disegnaSpritz(ctx, { tempo }));
+    return;
+  }
+
   ctx.fillStyle = '#fbfcfd';
   ctx.beginPath();
   ctx.arc(p.x, p.y, raggio, 0, Math.PI * 2);
@@ -1236,6 +1244,19 @@ function disegnaSimboloBonus(ctx, tipo, cx, cy, r) {
     ctx.lineTo(cx + r * 0.05, cy - r * 0.1);
     ctx.closePath();
     ctx.fill();
+    return;
+  }
+  if (tipo === SPRITZ) {
+    // il calice in miniatura: coppa, stelo e piede
+    ctx.beginPath();
+    ctx.moveTo(cx - r * 0.7, cy - r * 0.9);
+    ctx.lineTo(cx + r * 0.7, cy - r * 0.9);
+    ctx.lineTo(cx + r * 0.22, cy + r * 0.15);
+    ctx.lineTo(cx - r * 0.22, cy + r * 0.15);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillRect(cx - r * 0.09, cy + r * 0.15, r * 0.18, r * 0.6);
+    ctx.fillRect(cx - r * 0.5, cy + r * 0.72, r, r * 0.2);
     return;
   }
   if (tipo === MADONNINA) {
@@ -1755,23 +1776,23 @@ function disegnaIstruzioni(ctx, mondo) {
   ctx.font = `800 ${unita * 0.075}px system-ui, -apple-system, sans-serif`;
   ctx.fillText('COME SI GIOCA', centro, vista.altezza * 0.075);
 
-  titolo('SI SCAPPA COSÌ', 0.145);
+  titolo('SI SCAPPA COSÌ', 0.135);
   const gesti = [
-    [0.185, 'lato', 'scorri a lato: cambi corsia'],
-    [0.225, 'alto', 'scorri in alto: salti'],
-    [0.265, 'basso', 'scorri in basso: ti abbassi'],
+    [0.172, 'lato', 'scorri a lato: cambi corsia'],
+    [0.208, 'alto', 'scorri in alto: salti'],
+    [0.244, 'basso', 'scorri in basso: ti abbassi'],
   ];
   for (const [y, verso, testo] of gesti) {
     disegnaFrecciaGesto(ctx, sinistra + unita * 0.03, vista.altezza * y, unita * 0.028, verso);
     riga(testo, y);
   }
 
-  titolo('CHI TI VUOLE FERMARE', 0.325);
+  titolo('CHI TI VUOLE FERMARE', 0.3);
   const ostacoli = [
-    [0.365, 'buche e aiuole del sindaco: si saltano'],
-    [0.405, 'maranza sul monopattino, contromano: si cambia corsia'],
-    [0.445, 'ponticelli: ci si abbassa e si passa sotto'],
-    [0.485, "l'Arco della Pace: si passa solo dal buco in mezzo"],
+    [0.337, 'buche e aiuole del sindaco: si saltano'],
+    [0.373, 'maranza sul monopattino, contromano: si cambia corsia'],
+    [0.409, 'ponticelli: ci si abbassa e si passa sotto'],
+    [0.445, "l'Arco della Pace: si passa solo dal buco in mezzo"],
   ];
   for (const [y, testo] of ostacoli) {
     ctx.fillStyle = 'rgba(247,248,250,0.45)';
@@ -1781,15 +1802,16 @@ function disegnaIstruzioni(ctx, mondo) {
     riga(testo, y);
   }
 
-  titolo('TRE ERRORI E TI PRENDONO', 0.545);
-  riga('ogni errore ti mangia un terzo del distacco, e non si recupera più', 0.585, sinistra);
+  titolo('TRE ERRORI E TI PRENDONO', 0.5);
+  riga('ogni errore ti mangia un terzo del distacco. e più vai avanti, più stringe', 0.537, sinistra);
 
-  titolo('I POTERI', 0.645);
+  titolo('I POTERI', 0.59);
   const poteri = [
-    [0.685, SCUDO, 'scudo: un poliziotto ti affianca e si mangia un errore'],
-    [0.725, SCATTO, 'car sharing: macchinina rossa, velocissimo e passi attraverso'],
-    [0.765, CALAMITA, 'carta di credito: le monete vengono da te da sole'],
-    [0.805, MADONNINA, 'Madonnina: dieci secondi al triplo, e non ti tocca nessuno'],
+    [0.627, SCUDO, 'scudo: un poliziotto ti affianca e si mangia un errore'],
+    [0.663, SCATTO, 'car sharing: macchinina rossa, velocissimo e passi attraverso'],
+    [0.699, CALAMITA, 'carta di credito: le monete vengono da te da sole'],
+    [0.735, SPRITZ, 'spritz: ti ridà una vita, uno solo fra due Madonnine'],
+    [0.771, MADONNINA, 'Madonnina: dieci secondi al triplo, e non ti tocca nessuno'],
   ];
   for (const [y, tipo, testo] of poteri) {
     const cx = sinistra + unita * 0.03;
@@ -1807,7 +1829,7 @@ function disegnaIstruzioni(ctx, mondo) {
   ctx.fillStyle = COLORI.testo;
   ctx.font = `700 ${unita * 0.05}px system-ui, -apple-system, sans-serif`;
   ctx.globalAlpha = 0.65 + 0.35 * Math.sin(mondo.tempo * 3);
-  ctx.fillText('tocca per tornare', centro, vista.altezza * 0.9);
+  ctx.fillText('tocca per tornare', centro, vista.altezza * 0.86);
   ctx.globalAlpha = 1;
 }
 
