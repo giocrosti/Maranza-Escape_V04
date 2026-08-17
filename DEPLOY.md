@@ -1,10 +1,19 @@
-# Pubblicare il gioco: cosa devi fare tu su GitHub
+# Pubblicare il gioco
 
-Il workflow e' gia' scritto (`.github/workflows/pubblica.yml`) e fa tutto da solo a
-ogni push. Ma la prima volta GitHub va acceso a mano, perche' nessuno puo' attivare
-le Pages di un repository al posto tuo. Sono cinque minuti, una volta sola.
+**Il gioco e' gia' online:** <https://giocrosti.github.io/Maranza-Escape_V04/>
 
-## 1. Metti il codice su GitHub
+Codice pubblicato, Pages accese in modalita' GitHub Actions, primo deploy riuscito e
+verificato aprendo davvero la pagina. Da adesso in poi ogni `git push` sul ramo `main`
+ripubblica da solo: **non devi fare piu' niente**.
+
+Ti resta un solo passo, ed e' quello sul telefono: la [sezione 4](#4-mettilo-sulla-home-delliphone).
+
+Il resto di questa pagina serve se un domani rifai tutto da zero, o se qualcosa smette
+di funzionare.
+
+---
+
+## 1. Metti il codice su GitHub (gia' fatto)
 
 Se il progetto non e' ancora su GitHub:
 
@@ -33,7 +42,7 @@ git push -u origin main
 Se `git remote add` risponde che `origin` esiste gia', il collegamento c'e' e basta
 fare il push.
 
-## 2. Accendi le Pages
+## 2. Accendi le Pages (gia' fatto)
 
 1. Sul repository, scheda **Settings** (in alto a destra).
 2. Nella barra di sinistra, **Pages**.
@@ -44,7 +53,7 @@ fare il push.
    e' la cartella `dist/`, che esiste solo dopo la costruzione.
 4. Non serve salvare: la scelta e' immediata.
 
-## 3. Guarda la prima pubblicazione
+## 3. Guarda la pubblicazione
 
 1. Scheda **Actions**.
 2. Trovi un'esecuzione chiamata "Pubblica su GitHub Pages", partita dal tuo push.
@@ -52,7 +61,7 @@ fare il push.
    test, costruisce e pubblica.
 3. Quando il pallino diventa verde, l'indirizzo del gioco e'
 
-   `https://TUO-NOME.github.io/maranza-escape/`
+   `https://giocrosti.github.io/Maranza-Escape_V04/`
 
    Lo trovi anche in Settings → Pages, in cima.
 
@@ -84,7 +93,7 @@ per prima cosa quello che ha in cache, e intanto scarica il resto in sottofondo.
 invece che con "GitHub Actions". Torna in Settings → Pages e cambialo.
 
 **Il gioco si vede ma le icone no.** Controlla che l'indirizzo finisca con la barra
-(`/maranza-escape/` e non `/maranza-escape`). Tutti i percorsi del gioco sono
+(`/Maranza-Escape_V04/` e non `/Maranza-Escape_V04`). Tutti i percorsi del gioco sono
 relativi apposta, ma senza la barra finale il browser sbaglia la cartella di partenza.
 
 **Ho aggiornato ma sul telefono vedo la versione vecchia.** Chiudi l'app dalla lista
