@@ -99,6 +99,58 @@ const titolo = await pagina.title();
 console.log(titolo);
 for (const riga of falliti) console.error('  ' + riga);
 
+// --- il pacchetto costruito parte davvero? ---------------------------------
+//
+// Questo controllo esiste perche' e' mancato una volta, ed e' costato caro: il
+// gioco funzionava in sviluppo e nel pacchetto costruito **non partiva**. Non
+// dava errori, non falliva nessuna richiesta: l'inizializzazione restava appesa
+// e lo schermo restava vuoto. Era colpa di come Rollup spezzava PixiJS in
+// chunk, cioe' di una cosa che in sviluppo non esiste proprio.
+//
+// Morale: una suite che prova solo i sorgenti non dice niente su cio' che si
+// pubblica. Se `dist/` c'e', si apre e si guarda se il mondo nasce.
+if (existsSync(join(RADICE, 'dist', 'index.html'))) {
+  const anteprima = spawn(
+    process.platform === 'win32' ? 'npx.cmd' : 'npx',
+    ['vite', 'preview', '--port', '5184', '--strictPort', '--host', '127.0.0.1'],
+    { cwd: RADICE, stdio: 'ignore', shell: process.platform === 'win32' },
+  );
+  const spegniAnteprima = () => {
+    if (process.platform === 'win32') {
+      spawn('taskkill', ['/pid', String(anteprima.pid), '/T', '/F'], { stdio: 'ignore' });
+    } else {
+      anteprima.kill();
+    }
+  };
+
+  const indirizzo = 'http://127.0.0.1:5184/';
+  for (let i = 0; i < 60; i += 1) {
+    try {
+      if ((await fetch(indirizzo)).ok) break;
+    } catch {
+      /* non ancora */
+    }
+    await new Promise((r) => setTimeout(r, 300));
+  }
+
+  const costruito = await browser.newPage();
+  try {
+    await costruito.goto(indirizzo, { waitUntil: 'load' });
+    // generoso: se un motore grafico non risponde, la ricaduta sull'altro
+    // arriva dopo qualche secondo, e non e' un guasto
+    await costruito.waitForFunction(() => Boolean(window.mondo), null, { timeout: 20000 });
+    const motore = await costruito.evaluate(() => window.motoreGrafico);
+    console.log(`il pacchetto costruito parte (motore: ${motore})`);
+  } catch {
+    problemi.push(
+      'il pacchetto in dist/ non parte: window.mondo non compare entro 20 secondi. ' +
+        'In sviluppo puo funzionare lo stesso — guarda come e stato spezzato il bundle.',
+    );
+  }
+  await costruito.close();
+  spegniAnteprima();
+}
+
 if (problemi.length) {
   console.error(`CONTROLLI SUI FILE FALLITI (${problemi.length})`);
   for (const p of problemi) console.error('  ' + p);

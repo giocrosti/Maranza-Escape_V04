@@ -48,11 +48,15 @@ jobs:
       - name: Prepara il browser dei test
         run: npx playwright install --with-deps chromium
 
-      - name: Esegui i test
-        run: npm test
-
+      # Prima si costruisce, poi si prova: la suite, se trova `dist/`, controlla
+      # anche che il pacchetto costruito parta davvero. E' un controllo che in
+      # sviluppo non si puo' fare, perche' in sviluppo quel pacchetto non esiste
+      # — ed e' esattamente li' che si era nascosto un guasto muto.
       - name: Costruisci
         run: npm run build
+
+      - name: Esegui i test
+        run: npm test
 
       - uses: actions/configure-pages@v5
 

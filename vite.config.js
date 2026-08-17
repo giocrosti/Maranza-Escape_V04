@@ -11,6 +11,26 @@ export default defineConfig({
     // sotto: sotto quella soglia manca anche il resto (Array.at, ecc.).
     target: ['es2022', 'safari16'],
     sourcemap: true,
+
+    rollupOptions: {
+      output: {
+        // Tutto PixiJS in un pezzo solo, separato dal gioco.
+        //
+        // PixiJS carica a richiesta il proprio motore grafico e le proprie
+        // estensioni d'ambiente. Lasciando fare a Rollup, quei pezzi finiscono
+        // sparsi in chunk diversi e l'inizializzazione **non finisce mai**:
+        // nessun errore, nessuna richiesta fallita, solo una promessa che non
+        // si risolve e un gioco che non parte. Il sintomo piu' muto che ci sia.
+        //
+        // Schiacciare tutto in un file solo (`inlineDynamicImports`) non e' la
+        // risposta: li' Rollup deve riordinare i moduli e si finisce su un
+        // "Cannot access before initialization", cioe' lo stesso problema con
+        // un'altra faccia. Tenere la libreria in un chunk suo mantiene l'ordine
+        // interno che si aspetta, e lascia il gioco libero di cambiare senza
+        // far riscaricare mezzo megabyte di libreria.
+        manualChunks: { pixi: ['pixi.js'] },
+      },
+    },
   },
 
   server: {

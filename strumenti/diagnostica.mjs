@@ -62,6 +62,18 @@ const browser = await chromium.launch({
 });
 const pagina = await browser.newPage({ viewport: { width: 393, height: 852 } });
 
+// `main.js` ha un await di primo livello, quindi il suo corpo e' una promessa:
+// un'eccezione dopo quell'await diventa un rifiuto non gestito, e i rifiuti non
+// gestiti **non passano** da `pageerror`. Senza questo aggancio il sintomo e'
+// "la pagina si carica, non stampa niente, e il gioco non c'e'": il modo piu'
+// lungo possibile di scoprire un errore che si presenta da solo.
+await pagina.addInitScript(() => {
+  window.addEventListener('unhandledrejection', (evento) => {
+    const motivo = evento.reason;
+    console.error('RIFIUTO NON GESTITO: ' + (motivo && motivo.stack ? motivo.stack : motivo));
+  });
+});
+
 pagina.on('console', (m) => {
   const testo = m.text();
   if (filtro && !testo.includes(filtro)) return;
@@ -70,7 +82,10 @@ pagina.on('console', (m) => {
 pagina.on('pageerror', (e) => console.log(`[pageerror] ${e.stack || e}`));
 
 await pagina.goto(url, { waitUntil: 'load' });
-await pagina.waitForTimeout(2500);
+// Abbondante apposta: se un motore grafico non risponde, la ricaduta sull'altro
+// arriva dopo qualche secondo. Aspettando meno si fotografa il gioco mentre sta
+// ancora decidendo, e si scambia un'attesa per un guasto.
+await pagina.waitForTimeout(9000);
 
 const stato = await pagina.evaluate(() => ({
   motore: window.motoreGrafico,
