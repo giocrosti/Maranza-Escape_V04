@@ -13,10 +13,50 @@
 <meta name="theme-color" content="#7ea6cc">
 <meta name="description" content="Corri per Milano su tre corsie: salta le buche, schiva i monopattini, passa sotto i lampioni caduti.">
 <link rel="manifest" href="./manifest.json">
-<!-- iOS non legge le icone dal manifest: vuole questa -->
+<!-- iOS non legge le icone dal manifest: le vuole qui, una per misura -->
 <link rel="apple-touch-icon" href="./icone/icona-180.png">
+<link rel="apple-touch-icon" sizes="120x120" href="./icone/icona-120.png">
+<link rel="apple-touch-icon" sizes="152x152" href="./icone/icona-152.png">
+<link rel="apple-touch-icon" sizes="167x167" href="./icone/icona-167.png">
+<link rel="apple-touch-icon" sizes="180x180" href="./icone/icona-180.png">
 <link rel="icon" type="image/png" sizes="192x192" href="./icone/icona-192.png">
-<title>Maranza escape</title>
+
+<!-- Le schermate d'avvio di iOS.
+     iOS non ridimensiona niente: cerca l'immagine la cui misura corrisponde
+     esattamente allo schermo e all'orientamento, e se non la trova mostra una
+     pagina bianca. Da qui la fila: una coppia per ogni telefono in giro.
+     Le misure in `device-width`/`device-height` sono in punti CSS, quelle dei
+     file in pixel fisici — e' il `-webkit-device-pixel-ratio` a legarle. -->
+<link rel="apple-touch-startup-image" href="./avvio/avvio-1179x2556.png"
+      media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./avvio/avvio-2556x1179.png"
+      media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)">
+<link rel="apple-touch-startup-image" href="./avvio/avvio-1290x2796.png"
+      media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./avvio/avvio-2796x1290.png"
+      media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)">
+<link rel="apple-touch-startup-image" href="./avvio/avvio-1170x2532.png"
+      media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./avvio/avvio-2532x1170.png"
+      media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)">
+<link rel="apple-touch-startup-image" href="./avvio/avvio-1284x2778.png"
+      media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./avvio/avvio-2778x1284.png"
+      media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)">
+<link rel="apple-touch-startup-image" href="./avvio/avvio-1125x2436.png"
+      media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./avvio/avvio-2436x1125.png"
+      media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)">
+<link rel="apple-touch-startup-image" href="./avvio/avvio-828x1792.png"
+      media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./avvio/avvio-1792x828.png"
+      media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)">
+<link rel="apple-touch-startup-image" href="./avvio/avvio-750x1334.png"
+      media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./avvio/avvio-1334x750.png"
+      media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)">
+
+<title>Maranza Escape</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body {
@@ -33,7 +73,21 @@
     -webkit-tap-highlight-color: transparent;
     font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
   }
-  #gioco { display: block; }
+
+  /* Due tele sovrapposte.
+     - #gioco    la scena, disegnata da PixiJS (WebGPU, o WebGL2 dove manca):
+                 e' quella che passa dentro luci e post-processing.
+     - #interfaccia  punteggio, pulsanti e schermate, in canvas 2D sopra tutto.
+                 Sta fuori dal post-processing apposta: una scritta sfocata
+                 dall'aberrazione cromatica non si legge piu'. */
+  #gioco, #interfaccia {
+    position: fixed;
+    top: 0;
+    left: 0;
+    display: block;
+  }
+  #gioco { z-index: 0; }
+  #interfaccia { z-index: 1; }
 
   /* Non si vede: serve solo a misurare le zone coperte da tacca, isola
      dinamica e barra di casa. I valori si leggono da JavaScript. */
@@ -54,6 +108,7 @@
 </head>
 <body>
   <canvas id="gioco"></canvas>
+  <canvas id="interfaccia"></canvas>
   <div id="sicurezza"></div>
   <script type="module" src="./src/main.js"></script>
 </body>

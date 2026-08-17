@@ -14,8 +14,8 @@
 // corto. Il gesto proprio dell'ostacolo e' quello che funziona **sempre**,
 // anche quando l'ostacolo prende tutta la strada.
 
-import { CORSIE, SEMI_PROFONDITA_OMINO } from './costanti.js';
-import { aTerra, altezzaTesta, corsieOccupate } from './corridore.js';
+import { CORSIE, SEMI_PROFONDITA_OMINO, QUOTA_A_TERRA, ALTEZZA_OMINO } from './costanti.js';
+import { aTerra, altezzaTesta, corsieOccupate, SEMI_LARGHEZZA_OMINO } from './corridore.js';
 
 export const BUCA = 'buca';
 export const AIUOLA = 'aiuola';
@@ -211,6 +211,48 @@ export function distanzaRelativa(ostacolo, distanzaPercorsa) {
 /** Vero mentre l'omino e l'ostacolo si sovrappongono lungo la strada. */
 export function sovrapposto(ostacolo, zRelativo) {
   return Math.abs(zRelativo) < ostacolo.profondita / 2 + SEMI_PROFONDITA_OMINO;
+}
+
+/** Quanto largo e' stato il margine con cui si e' scampato un ostacolo.
+ *
+ *  Ritorna un numero da 0 a 1: **0 vuol dire per un pelo**, 1 vuol dire che non
+ *  c'e' mai stato pericolo. Serve al fermo immagine e alle scintille, cioe' a
+ *  dire al giocatore "quella l'hai presa bene" nel momento esatto in cui e'
+ *  successo — che e' l'unico momento in cui la cosa gli interessa.
+ *
+ *  Il margine si misura nel modo proprio di ogni ostacolo, perche' ogni
+ *  ostacolo si passa con un gesto suo: una buca la si scavalca in **altezza**,
+ *  un ponticello si passa in altezza al contrario, un monopattino si scansa di
+ *  **lato**. Misurarli tutti allo stesso modo darebbe un numero che non vuol
+ *  dire niente per almeno due di loro. */
+export function margineScampato(ostacolo, corridore) {
+  const corsieCoinvolte = corsieOstacolo(ostacolo);
+  const dentro = corsieOccupate(corridore).some((c) => corsieCoinvolte.includes(c));
+
+  if (dentro) {
+    // Si e' passati **dentro** la corsia dell'ostacolo: allora e' stato il
+    // gesto a salvare, e il margine e' quanto e' avanzato di quel gesto.
+    if (ostacolo.tipo === BUCA || ostacolo.tipo === AIUOLA) {
+      if (aTerra(corridore)) return 1; // non l'ha scampata, l'ha presa
+      // quanto si e' stati sopra la soglia oltre cui la buca non prende piu'
+      return Math.min(1, (corridore.y - QUOTA_A_TERRA) / 0.9);
+    }
+    if (ostacolo.tipo === PONTICELLO) {
+      const spazio = ALTEZZA_PONTICELLO - altezzaTesta(corridore);
+      return spazio <= 0 ? 1 : Math.min(1, spazio / 0.35);
+    }
+    // monopattino e piloni: dentro la corsia non si scampa
+    return 1;
+  }
+
+  // Fuori dalla corsia: il margine e' la distanza laterale dal bordo piu'
+  // vicino dell'ostacolo, in corsie.
+  let minimo = Infinity;
+  for (const corsia of corsieCoinvolte) {
+    const distanza = Math.abs(corridore.posizione - corsia) - SEMI_LARGHEZZA_OMINO / 2 - 0.5;
+    minimo = Math.min(minimo, Math.max(0, distanza));
+  }
+  return Number.isFinite(minimo) ? Math.min(1, minimo / 0.55) : 1;
 }
 
 /** Vero se in questo istante l'ostacolo prende l'omino.

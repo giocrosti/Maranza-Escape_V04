@@ -1,4 +1,18 @@
-// Punto di ingresso: collega canvas, ciclo di gioco e disegno.
+// Punto di ingresso: accende PixiJS, collega i comandi e tiene il ciclo di gioco.
+//
+// Lo schermo e' fatto di due tele sovrapposte, e la divisione non e' un
+// dettaglio di implementazione:
+//
+//   #gioco        la scena, montata da PixiJS su WebGPU (o WebGL2 dove manca).
+//                 Passa dai layer di profondita', dalle luci e dal
+//                 post-processing.
+//   #interfaccia  punteggio, pulsanti e schermate, in canvas 2D, sopra.
+//                 Fuori dal post-processing apposta: aberrazione cromatica e
+//                 vignetta su una scritta la rendono solo illeggibile.
+//
+// Il mondo — regole, corsie, urti, punteggio — non sa niente di tutto questo, ed
+// e' rimasto quello di prima: `mondo.js` e i suoi moduli non hanno una riga che
+// parli di canvas, di Pixi o di pixel.
 
 import {
   creaMondo,
@@ -14,13 +28,28 @@ import {
   apriIstruzioni,
   chiudiIstruzioni,
 } from './mondo.js';
-import { disegnaMondo } from './render.js';
+import { disegnaInterfaccia } from './render.js';
 import { collegaInput, azioneDaTasto } from './input.js';
 import { leggiRecord, aggiornaRecord } from './record.js';
-import { areaPausa, toccaPausa, areaIstruzioni, areaCasa, toccaRiquadro } from './pulsanti.js';
+import {
+  areaPausa,
+  toccaPausa,
+  areaIstruzioni,
+  areaCasa,
+  areaCondivisione,
+  toccaRiquadro,
+} from './pulsanti.js';
+import { sapraCondividere, condividiRecord } from './interfaccia/condivisione.js';
+import { creaApplicazione, motoreDi, risoluzioneUtile } from './grafica/applicazione.js';
+import { Scena } from './grafica/scena.js';
+import { creaQualita, valutaQualita } from './grafica/qualita.js';
+import { creaAnimazioni, avanzaAnimazioni } from './interfaccia/animazioni.js';
+import { creaCassa, sblocca, aggiornaCassa, zittisci } from './suono/cassa.js';
+import { minaccia } from './inseguitori.js';
 
-const canvas = document.getElementById('gioco');
-const ctx = canvas.getContext('2d');
+const canvasScena = document.getElementById('gioco');
+const canvasInterfaccia = document.getElementById('interfaccia');
+const ctxInterfaccia = canvasInterfaccia.getContext('2d');
 const sicurezza = document.getElementById('sicurezza');
 
 const mondo = creaMondo(window.innerWidth, window.innerHeight);
@@ -31,7 +60,37 @@ const interfaccia = {
   mostraFps: false,
   // zone coperte da tacca, isola dinamica e barra di casa
   margini: { alto: 0, destro: 0, basso: 0, sinistro: 0 },
+  // i valori che si muovono con una curva invece che a scatto
+  animazioni: creaAnimazioni(),
+  // il pulsante di condivisione compare solo dove la condivisione esiste
+  puoCondividere: sapraCondividere(),
+  esitoCondivisione: null,
 };
+
+/** La cassa degli inseguitori. Nasce muta: iOS non fa suonare niente finche'
+ *  non c'e' stato un tocco, quindi si accende al primo comando. */
+const cassa = creaCassa();
+
+let app;
+try {
+  app = await creaApplicazione(canvasScena);
+} catch (errore) {
+  spiegaCheNonSiPuoGiocare(errore);
+  throw errore;
+}
+const scena = new Scena(app);
+
+/** Senza WebGPU ne' WebGL2 non c'e' niente da fare: la scena e' fatta di layer
+ *  e filtri, e nessuno dei due esiste su un canvas 2D. Meglio una frase chiara
+ *  di uno schermo nero. */
+function spiegaCheNonSiPuoGiocare() {
+  document.body.innerHTML =
+    '<div style="color:#f7f8fa;font:16px/1.5 system-ui;padding:32px;text-align:center">' +
+    '<p><b>Questo telefono non regge la grafica del gioco.</b></p>' +
+    '<p>Serve un browser con WebGPU o WebGL2. Su iPhone basta aggiornare iOS.</p>' +
+    '</div>';
+  document.body.style.background = '#1b2536';
+}
 
 /** Legge i margini di sicurezza dal riquadro nascosto in pagina.
  *  Su computer sono tutti zero; su iPhone valgono decine di pixel, e senza
@@ -47,26 +106,39 @@ function leggiMarginiSicurezza() {
   };
 }
 
-/** Adatta il canvas alla finestra, ma solo se qualcosa e' cambiato davvero:
- *  riassegnare `canvas.width` azzera il contenuto, quindi non va fatto a ogni
- *  fotogramma. */
-function adattaCanvas() {
-  // Il canvas ha due dimensioni: quella CSS (px logici) e quella del buffer
-  // (px fisici). Su schermi ad alta densita' vanno tenute separate, altrimenti
-  // il disegno risulta sfocato.
-  const dpr = window.devicePixelRatio || 1;
+let larghezzaAttuale = 0;
+let altezzaAttuale = 0;
+
+/** Se il telefono non tiene i sessanta, si scende di risoluzione invece di
+ *  restare belli e a scatti. */
+const qualita = creaQualita(risoluzioneUtile());
+
+/** Adatta le due tele alla finestra, ma solo se qualcosa e' cambiato davvero:
+ *  rigenerare i fondali e riallocare le texture a ogni fotogramma sarebbe il
+ *  modo piu' rapido di non arrivare mai a sessanta. */
+function adatta() {
   const larghezza = window.innerWidth;
   const altezza = window.innerHeight;
-  const larghezzaBuffer = Math.round(larghezza * dpr);
-  const altezzaBuffer = Math.round(altezza * dpr);
-  if (canvas.width === larghezzaBuffer && canvas.height === altezzaBuffer) return;
+  if (larghezza === larghezzaAttuale && altezza === altezzaAttuale) return;
+  if (larghezza < 2 || altezza < 2) return; // pagina in una scheda nascosta
+  larghezzaAttuale = larghezza;
+  altezzaAttuale = altezza;
 
-  canvas.width = larghezzaBuffer;
-  canvas.height = altezzaBuffer;
-  canvas.style.width = larghezza + 'px';
-  canvas.style.height = altezza + 'px';
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ridimensionaMondo(mondo, larghezza, altezza);
+
+  app.renderer.resize(larghezza, altezza, qualita.risoluzione);
+  scena.ridimensiona(larghezza, altezza, mondo.vista.orizzonte, qualita.risoluzione);
+
+  // L'interfaccia sta alla densita' piena dello schermo, non a quella tagliata
+  // della scena: le scritte sono l'unica cosa che si legge, e su un iPhone la
+  // differenza fra 2 e 3 su un testo si vede.
+  const dpr = window.devicePixelRatio || 1;
+  canvasInterfaccia.width = Math.round(larghezza * dpr);
+  canvasInterfaccia.height = Math.round(altezza * dpr);
+  canvasInterfaccia.style.width = larghezza + 'px';
+  canvasInterfaccia.style.height = altezza + 'px';
+  ctxInterfaccia.setTransform(dpr, 0, 0, dpr, 0, 0);
+
   // i margini cambiano ruotando il telefono, quindi si rileggono qui
   leggiMarginiSicurezza();
 }
@@ -80,19 +152,24 @@ function ciclo(ora) {
   const dt = (ora - ultimoTempo) / 1000;
   ultimoTempo = ora;
 
-  // Controllo a ogni fotogramma invece che sul solo evento `resize`: se la
-  // pagina nasce in una scheda nascosta la finestra misura 0x0, e senza questo
-  // il canvas resterebbe vuoto per sempre.
-  adattaCanvas();
-
+  adatta();
   avanzaMondo(mondo, dt);
 
   // Il record si aggiorna nell'istante in cui la partita si chiude.
   if (statoPrecedente !== 'finita' && mondo.stato === 'finita') {
     interfaccia.record = aggiornaRecord(mondo.punteggio);
     lasciaSpegnereLoSchermo();
+    zittisci(cassa);
   }
   statoPrecedente = mondo.stato;
+
+  // Il giudizio sulla qualita' si prende sul tempo vero del fotogramma, non
+  // sugli fps arrotondati: e' il p95 che conta, e gli fps mediati lo perdono.
+  const nuovaRisoluzione = valutaQualita(qualita, dt * 1000);
+  if (nuovaRisoluzione) {
+    app.renderer.resize(larghezzaAttuale, altezzaAttuale, nuovaRisoluzione);
+    scena.ridimensiona(larghezzaAttuale, altezzaAttuale, mondo.vista.orizzonte, nuovaRisoluzione);
+  }
 
   contatoreFotogrammi += 1;
   tempoContatore += dt;
@@ -102,18 +179,30 @@ function ciclo(ora) {
     tempoContatore = 0;
   }
 
-  disegnaMondo(ctx, mondo, interfaccia);
+  // Lo stesso passo che vede il mondo: le particelle devono muoversi con la
+  // strada, non col cronometro di sistema.
+  const passo = Math.min(Math.max(dt, 0), 0.05);
+  avanzaAnimazioni(interfaccia.animazioni, mondo, passo);
+  aggiornaCassa(cassa, minaccia(mondo.inseguitori), mondo.stato === 'in-gioco');
+
+  scena.aggiorna(mondo, passo);
+  app.render();
+
+  disegnaInterfaccia(ctxInterfaccia, mondo, interfaccia);
   if (interfaccia.mostraFps) disegnaFps();
+
   requestAnimationFrame(ciclo);
 }
 
 function disegnaFps() {
+  const ctx = ctxInterfaccia;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'bottom';
   ctx.fillStyle = 'rgba(255,255,255,0.7)';
   ctx.font = '600 12px system-ui, sans-serif';
   ctx.fillText(
-    `${interfaccia.fps} fps · ${mondo.velocita.toFixed(1)} m/s · distacco ${mondo.inseguitori.distacco.toFixed(1)}`,
+    `${interfaccia.fps} fps · ${motoreGrafico} · ${mondo.velocita.toFixed(1)} m/s · ` +
+      `part ${scena.particelleVive} · distacco ${mondo.inseguitori.distacco.toFixed(1)}`,
     mondo.vista.larghezza / 2,
     mondo.vista.altezza - interfaccia.margini.basso - 4,
   );
@@ -128,15 +217,27 @@ function partenza() {
 /** Il pulsante di pausa, e il tocco che riprende da fermo. */
 function commutaPausa() {
   if (!alternaPausa(mondo)) return;
-  if (inPausa(mondo)) lasciaSpegnereLoSchermo();
-  else tieniAccesoLoSchermo();
+  if (inPausa(mondo)) {
+    lasciaSpegnereLoSchermo();
+    zittisci(cassa);
+  } else {
+    tieniAccesoLoSchermo();
+  }
 }
 
 /** Torna alla schermata iniziale e lascia spegnere lo schermo. */
 function vaiAllaHome() {
   if (!tornaAllaHome(mondo)) return false;
   lasciaSpegnereLoSchermo();
+  zittisci(cassa);
   return true;
+}
+
+/** Il primo gesto dell'utente, qualunque sia, e' anche quello che accende
+ *  l'audio: e' l'unico momento in cui Safari lo permette. Chiamarla piu' volte
+ *  non costa niente. */
+function primoGesto() {
+  sblocca(cassa);
 }
 
 /** I pulsanti, in ordine di precedenza. Ritorna true se il tocco e' stato
@@ -154,6 +255,19 @@ function pulsanteSotto(x, y) {
     vaiAllaHome();
     return true;
   }
+  // La condivisione si chiama **da qui dentro**, senza nessun await prima:
+  // Safari accetta `navigator.share` solo se la chiamata parte dalla catena di
+  // un gesto vero, e basta un `await` di troppo per perdere quel diritto.
+  const condivisioneVisibile =
+    interfaccia.puoCondividere && mondo.stato === 'finita' && puoRiavviare(mondo);
+  if (condivisioneVisibile && toccaRiquadro(areaCondivisione(mondo.vista), x, y)) {
+    interfaccia.esitoCondivisione = 'apro...';
+    condividiRecord(mondo).then((esito) => {
+      interfaccia.esitoCondivisione =
+        esito === 'mandato' ? 'mandato!' : esito === 'annullato' ? 'manda il record' : null;
+    });
+    return true;
+  }
   if (mondo.stato === 'attesa' && toccaRiquadro(areaIstruzioni(mondo.vista), x, y)) {
     apriIstruzioni(mondo);
     return true;
@@ -161,8 +275,13 @@ function pulsanteSotto(x, y) {
   return false;
 }
 
-collegaInput(canvas, {
-  intercetta: pulsanteSotto,
+// I comandi si prendono sulla tela dell'interfaccia perche' e' quella sopra:
+// e' li' che il dito arriva davvero.
+collegaInput(canvasInterfaccia, {
+  intercetta: (x, y) => {
+    primoGesto();
+    return pulsanteSotto(x, y);
+  },
   azione: (azione) => {
     // Sulle istruzioni qualunque gesto chiude la pagina: non si comanda niente.
     if (mondo.stato === 'istruzioni') chiudiIstruzioni(mondo);
@@ -181,6 +300,7 @@ collegaInput(canvas, {
 });
 
 window.addEventListener('keydown', (evento) => {
+  primoGesto();
   if (evento.key === 'p' || evento.key === 'P' || evento.key === 'Escape') {
     evento.preventDefault();
     if (mondo.stato === 'istruzioni') chiudiIstruzioni(mondo);
@@ -243,6 +363,7 @@ document.addEventListener('visibilitychange', () => {
     // uscire mette in pausa, e si riprende quando si vuole.
     mettiInPausa(mondo);
     lasciaSpegnereLoSchermo();
+    zittisci(cassa);
     return;
   }
   // Il tempo e' andato avanti mentre l'app era dietro, ma il gioco no: senza
@@ -252,19 +373,23 @@ document.addEventListener('visibilitychange', () => {
 
 /** Il service worker fa funzionare il gioco senza rete, ma serve solo alla
  *  versione pubblicata: in locale terrebbe in cache i file mentre li si
- *  modifica, che e' esattamente il problema che il dev-server evita. */
+ *  modifica, che e' esattamente il problema che il server di sviluppo evita. */
 function registraServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   if (['localhost', '127.0.0.1'].includes(location.hostname)) return;
-  navigator.serviceWorker.register('./sw.js').catch(() => {
+  navigator.serviceWorker.register(new URL('sw.js', location.href).href).catch(() => {
     /* senza service worker si gioca comunque, solo con la rete */
   });
 }
 
-adattaCanvas();
+const motoreGrafico = motoreDi(app);
+
+adatta();
 registraServiceWorker();
 requestAnimationFrame(ciclo);
 
-// utile per ispezionare lo stato dalla console durante lo sviluppo
+// utili per ispezionare lo stato dalla console e per gli scatti di confronto
 window.mondo = mondo;
 window.interfaccia = interfaccia;
+window.scena = scena;
+window.motoreGrafico = motoreGrafico;

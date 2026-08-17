@@ -54,7 +54,14 @@ export function areaIstruzioni(vista) {
 /** "torna alla home", in pausa e a partita finita. Le due quote sono diverse
  *  perche' diverse sono le due schermate. */
 export function areaCasa(vista, inPausa) {
-  return riquadroCentrato(vista, inPausa ? 0.9 : 0.85);
+  return riquadroCentrato(vista, inPausa ? 0.9 : 0.92);
+}
+
+/** "manda il record", solo a partita finita. Sta **sopra** "torna alla home"
+ *  perche' e' la cosa che si fa piu' spesso: si guarda il punteggio, lo si
+ *  manda, e solo dopo si decide se smettere. */
+export function areaCondivisione(vista) {
+  return riquadroCentrato(vista, 0.845, 0.46);
 }
 
 /** Vero se il tocco e' dentro il riquadro, con un margine di tolleranza. */

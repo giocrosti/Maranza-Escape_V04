@@ -1,0 +1,71 @@
+# Pubblica il gioco su GitHub Pages a ogni push sul ramo principale.
+#
+# Il flusso e' quello ufficiale di GitHub per i siti costruiti: un lavoro
+# costruisce e carica l'artefatto, un secondo lo pubblica. Sono separati perche'
+# solo il secondo ha il permesso di scrivere sulle Pages, e tenere la
+# costruzione senza quel permesso vuol dire che una dipendenza compromessa non
+# puo' pubblicare niente da sola.
+#
+# Perche' i test girano qui: la suite apre un browser vero (Playwright), e un
+# gioco che non parte e' esattamente la cosa che non ci si accorge di aver rotto
+# finche' non lo si apre dal telefono, in giro, senza il computer davanti.
+
+name: Pubblica su GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  # Permette di rilanciare la pubblicazione a mano dalla scheda Actions,
+  # senza dover inventare un commit.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Una pubblicazione per volta. `cancel-in-progress: false` perche' interrompere
+# a meta' un caricamento sulle Pages lascia il sito in uno stato incerto:
+# meglio aspettare che finisca.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  costruisci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Installa le dipendenze
+        run: npm ci
+
+      - name: Prepara il browser dei test
+        run: npx playwright install --with-deps chromium
+
+      - name: Esegui i test
+        run: npm test
+
+      - name: Costruisci
+        run: npm run build
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  pubblica:
+    needs: costruisci
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.pubblicazione.outputs.page_url }}
+    steps:
+      - id: pubblicazione
+        uses: actions/deploy-pages@v4

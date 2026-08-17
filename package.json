@@ -1,0 +1,26 @@
+{
+  "name": "maranza-escape",
+  "version": "5.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Corri per Milano su tre corsie: salta le buche, schiva i monopattini, passa sotto i lampioni caduti.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --port 4173",
+    "test": "node strumenti/prova.mjs",
+    "scatta": "node strumenti/scatta.mjs",
+    "diagnostica": "node strumenti/diagnostica.mjs"
+  },
+  "dependencies": {
+    "pixi.js": "^8.6.6"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.1",
+    "vite": "^6.0.7",
+    "vite-plugin-pwa": "^0.21.1"
+  },
+  "allowScripts": {
+    "esbuild@0.25.12": true
+  }
+}

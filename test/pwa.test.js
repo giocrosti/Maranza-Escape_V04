@@ -32,52 +32,50 @@ async function moduliRaggiungibili(partenza) {
     if (!risposta.ok) throw new Error(`${url} non si scarica (${risposta.status})`);
     const sorgente = await risposta.text();
 
-    (sorgente.match(/from\s+'(\.[^']+)'/g) || []).forEach((riga) => {
-      const relativo = riga.match(/'(\.[^']+)'/)[1];
-      daVedere.push(new URL(relativo, url).href);
+    // Il server di sviluppo riscrive gli import: `./mondo.js` diventa
+    // `/src/mondo.js`. Vanno seguiti tutti e due i modi, o il test crede di
+    // avere finito dopo il primo file e non guarda piu' niente.
+    (sorgente.match(/from\s+["'](\.{1,2}\/[^"']+|\/src\/[^"']+)["']/g) || []).forEach((riga) => {
+      const percorso = riga.match(/["'](\.{1,2}\/[^"']+|\/src\/[^"']+)["']/)[1];
+      daVedere.push(new URL(percorso, url).href);
     });
   }
   return visti;
 }
 
-/** L'elenco dei file dentro sw.js, gia' trasformato in indirizzi assoluti. */
-async function elencoDelServiceWorker() {
-  const testo = await (await scarica('sw.js')).text();
-  const blocco = testo.match(/const FILE = \[([\s\S]*?)\];/);
-  if (!blocco) throw new Error('non trovo l elenco FILE dentro sw.js');
-  return (blocco[1].match(/'([^']+)'/g) || []).map((s) => indirizzo(s.slice(1, -1)));
-}
+/* L'elenco dei file da tenere in cache non e' piu' scritto a mano.
+   Prima c'era in `sw.js` un array `FILE` con dentro ogni modulo, e due test che
+   controllavano che non si scollasse da quello che il gioco carica davvero:
+   erano test giusti, perche' un elenco a mano si scolla sempre.
+   Adesso il service worker lo genera `vite-plugin-pwa` a partire dal contenuto
+   della cartella costruita, quindi l'elenco non puo' piu' essere incompleto per
+   distrazione — e il modo di rompere l'offline e' un altro: non pubblicare la
+   build. Restano i test sul manifest e sulla pagina, che a mano ci sono ancora. */
 
-testAsync('il service worker mette in cache tutti i moduli che il gioco carica', async () => {
+testAsync('il gioco carica solo moduli che esistono', async () => {
   const necessari = await moduliRaggiungibili('src/main.js');
-  const inCache = await elencoDelServiceWorker();
-
-  assert(necessari.size > 5, `trovati solo ${necessari.size} moduli: il test non sta guardando niente`);
-  const dimenticati = [...necessari]
-    .filter((m) => !inCache.includes(m))
-    .map((m) => new URL(m).pathname);
-  assertUguale(
-    dimenticati.join(', '),
-    '',
-    'moduli caricati dal gioco ma assenti da sw.js: senza, il gioco non parte offline',
+  assert(
+    necessari.size > 5,
+    `trovati solo ${necessari.size} moduli: il test non sta guardando niente`,
   );
-});
-
-testAsync('tutti i file elencati nel service worker esistono davvero', async () => {
-  const elenco = await elencoDelServiceWorker();
-  const esiti = await Promise.all(
-    elenco.map(async (url) => {
-      const risposta = await fetch(url, { cache: 'no-store' });
-      return risposta.ok ? null : `${new URL(url).pathname} (${risposta.status})`;
-    }),
-  );
-  assertUguale(esiti.filter(Boolean).join(', '), '', 'percorsi morti in sw.js');
 });
 
 testAsync('il manifest e quello di un app installabile a schermo intero', async () => {
   const manifest = await (await scarica('manifest.json')).json();
 
-  assertUguale(manifest.display, 'standalone', 'senza standalone resta la barra del browser');
+  // `fullscreen` con `standalone` come ripiego: dove il primo non e' supportato
+  // (iOS lo tratta gia' cosi', Android no) si scende al secondo invece di
+  // ricadere sulla barra del browser, che e' il vero fallimento.
+  assert(
+    ['fullscreen', 'standalone'].includes(manifest.display),
+    `display "${manifest.display}": cosi' resta la barra del browser`,
+  );
+  if (manifest.display === 'fullscreen') {
+    assert(
+      (manifest.display_override || []).includes('standalone'),
+      'con fullscreen serve standalone in display_override come ripiego',
+    );
+  }
   assert(manifest.name && manifest.short_name, 'servono nome e nome breve');
   assert(manifest.short_name.length <= 12, 'il nome breve deve stare sotto l icona');
   // percorsi relativi: su GitHub Pages il sito non sta nella radice del dominio
@@ -111,6 +109,50 @@ testAsync('le icone dichiarate esistono e hanno la misura giusta', async () => {
   }
 });
 
+testAsync('le schermate d avvio hanno la misura esatta che iOS pretende', async () => {
+  /* Una schermata d'avvio della misura sbagliata non da' nessun errore: iOS la
+     ignora in silenzio e mostra una pagina bianca all'apertura. E' il tipo di
+     difetto che non si scopre mai guardando il codice, perche' il codice e'
+     giusto — e' l'immagine a essere larga un pixel di meno. */
+  const html = await (await scarica('index.html')).text();
+  const collegamenti = html.match(/<link rel="apple-touch-startup-image"[^>]*>/g) || [];
+  assert(collegamenti.length >= 8, `trovate solo ${collegamenti.length} schermate d avvio`);
+
+  const sbagliate = [];
+  for (const collegamento of collegamenti) {
+    const percorso = collegamento.match(/href="([^"]+)"/)[1];
+    const attese = percorso.match(/avvio-(\d+)x(\d+)\.png/);
+    assert(attese, `nome senza misura: ${percorso}`);
+
+    const risposta = await fetch(indirizzo(percorso.replace('./', '')), { cache: 'no-store' });
+    if (!risposta.ok) {
+      sbagliate.push(`${percorso} non si scarica`);
+      continue;
+    }
+    const immagine = await createImageBitmap(await risposta.blob());
+    const vera = `${immagine.width}x${immagine.height}`;
+    const attesa = `${attese[1]}x${attese[2]}`;
+    if (vera !== attesa) sbagliate.push(`${percorso}: e ${vera}, dovrebbe essere ${attesa}`);
+  }
+  assertUguale(sbagliate.join(', '), '', 'schermate d avvio della misura sbagliata');
+});
+
+testAsync('ogni schermata d avvio ha la coppia ritratto e paesaggio', async () => {
+  // Il gioco chiede l'orientamento orizzontale, ma iOS non lo impone: se manca
+  // la schermata per l'orientamento in cui il telefono si trova al momento
+  // dell'avvio, resta bianco. Servono tutte e due, sempre.
+  const html = await (await scarica('index.html')).text();
+  const collegamenti = html.match(/<link rel="apple-touch-startup-image"[^>]*>/g) || [];
+
+  const versi = { portrait: 0, landscape: 0 };
+  for (const collegamento of collegamenti) {
+    if (collegamento.includes('orientation: portrait')) versi.portrait += 1;
+    if (collegamento.includes('orientation: landscape')) versi.landscape += 1;
+  }
+  assertUguale(versi.portrait, versi.landscape, 'ritratti e paesaggi non sono in pari');
+  assert(versi.landscape > 0, 'nessuna schermata d avvio orizzontale');
+});
+
 testAsync('la pagina dichiara cio che serve a iOS per l app sulla Home', async () => {
   const html = await (await scarica('index.html')).text();
 
@@ -122,18 +164,9 @@ testAsync('la pagina dichiara cio che serve a iOS per l app sulla Home', async (
   assert(html.includes('touch-action: none'), 'senza, scorrere per saltare trascina la pagina');
 });
 
-testAsync('nessun percorso assoluto: il gioco deve funzionare in una sottocartella', async () => {
-  const html = await (await scarica('index.html')).text();
-  const assolutiNellHtml = html.match(/(?:src|href)="\/[^/][^"]*"/g) || [];
-  assertUguale(assolutiNellHtml.join(', '), '', 'percorsi assoluti in index.html');
-
-  const sw = await (await scarica('sw.js')).text();
-  const elenco = (sw.match(/const FILE = \[([\s\S]*?)\];/)[1].match(/'([^']+)'/g) || []).map((s) =>
-    s.slice(1, -1),
-  );
-  assertUguale(
-    elenco.filter((f) => f.startsWith('/')).join(', '),
-    '',
-    'percorsi assoluti nell elenco di sw.js',
-  );
-});
+/* Il controllo sui percorsi assoluti non sta qui.
+   Il server di sviluppo riscrive `./manifest.json` in `/manifest.json` e ci
+   infila dentro `/@vite/client`: guardando la pagina servita si vedrebbero
+   sempre percorsi assoluti, e il test direbbe sempre di no. Quello che conta e'
+   il sorgente e la cartella costruita, che sono file su disco: li controlla
+   `strumenti/prova.mjs` prima di aprire il browser. */

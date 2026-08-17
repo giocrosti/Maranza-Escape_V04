@@ -129,36 +129,67 @@ su GitHub Pages.
 
 ## Come si avvia sul computer
 
-Doppio clic su **`avvia_maranza.bat`**: accende il server e apre il browser da solo.
-Per spegnere, si chiude quella finestra. Per usare un'altra porta:
-`avvia_maranza.bat 8790`.
+Doppio clic su **`avvia_maranza.bat`**: installa quel che manca, accende il server e
+apre il browser da solo. Per spegnere, si chiude quella finestra.
 
-A mano, lo stesso risultato:
+A mano:
 
 ```bash
-python dev-server.py
+npm install
 ```
 
-Poi apri <http://localhost:8775/>. Serve un server perche' i moduli ES non si caricano
-da `file://`: aprendo `index.html` con un doppio clic si vede solo lo sfondo. Il
-server e' `http.server` con le intestazioni di cache disattivate, cosi' dopo una
-modifica il browser non serve la versione precedente.
+```bash
+npm run dev
+```
+
+Poi apri <http://127.0.0.1:5173/>. Serve un server perche' i moduli non si caricano da
+`file://`: aprendo `index.html` con un doppio clic si vede solo lo sfondo.
 
 ### Il server di sviluppo non e' raggiungibile dalla rete
 
-Scelta voluta: `dev-server.py` ascolta **solo** su `127.0.0.1`. Non ha alcuna
-autenticazione e servirebbe tutti i file della cartella a chiunque sia collegato alla
-stessa Wi-Fi. Per giocare dal telefono si usa la versione pubblicata, non il server
-di sviluppo.
+Scelta voluta: ascolta **solo** su `127.0.0.1`. Non ha alcuna autenticazione e
+servirebbe tutti i file della cartella a chiunque sia collegato alla stessa Wi-Fi. Per
+giocare dal telefono si usa la versione pubblicata, non il server di sviluppo.
+
+## Come si pubblica
+
+```bash
+npm run build
+```
+
+Costruisce `dist/`, con dentro anche il service worker generato a partire da quello
+che c'e' davvero nella cartella. E' `dist/` che si pubblica, non la radice.
+
+In automatico ci pensa GitHub: `.github/workflows/pubblica.yml` costruisce e pubblica
+su GitHub Pages a ogni push sul ramo `main`. La prima volta va acceso a mano — le
+istruzioni sono in [DEPLOY.md](DEPLOY.md).
 
 ## Come si testa
 
-Apri <http://localhost:8775/tests.html>: la pagina esegue i test della logica pura e
-stampa l'esito (il titolo della scheda diventa `TEST OK (n)` o `TEST FALLITI (n)`).
+```bash
+npm test
+```
 
-I test non hanno bisogno di Node ne' di alcun framework: `test/mini-test.js` sono una
-sessantina di righe. Ogni nuovo file di test va aggiunto all'elenco di import in
-`tests.html`.
+Apre `tests.html` in un browser vero e riporta l'esito a riga di comando. I test
+girano nel browser e non in Node, e non e' una scelta di comodo: meta' di quello che
+c'e' da verificare — che uno shader compili, che una LUT abbia i pixel giusti, che il
+manifest si scarichi — esiste solo dentro un browser. Ogni nuovo file di test va
+aggiunto all'elenco di import in `tests.html`.
+
+## Come si guarda
+
+```bash
+npm run scatta -- --etichetta dopo
+```
+
+Mette in `schermate/` una serie di pose fissate, alle dimensioni di un iPhone 15 Pro.
+Le pose sono deterministiche — la citta' ha un seme costante — quindi due serie fatte
+prima e dopo una modifica si confrontano davvero, invece di somigliarsi.
+
+Gli stadi della grafica si possono spegnere uno per uno dalla riga d'indirizzo:
+`?strati=0` i fondali a parallasse, `?aria=0` la separazione atmosferica e la
+profondita' di campo, `?luci=0` l'illuminazione e il bloom, `?post=0` il color grading
+e i difetti d'obiettivo.
 
 ## Rigenerare le icone
 
@@ -172,8 +203,15 @@ python strumenti/genera-icone.py
 ## Com'e' fatto
 
 Tutta la logica sta in moduli puri, senza alcun riferimento al DOM: si possono
-eseguire e testare da soli. Solo `main.js`, `input.js` e `render.js` sanno che esiste
-un browser.
+eseguire e testare da soli. Solo `main.js`, `input.js` e la cartella del disegno sanno
+che esiste un browser.
+
+La scena non finisce piu' su una tela sola. Il canvas 2D e' rimasto il **pennello** —
+un viale milanese fatto di quadrilateri prospettici e' molto piu' semplice da scrivere
+cosi' che da montare con migliaia di sprite — ma ogni piano di profondita' finisce
+sulla sua tela, e da li' in poi e' una texture di PixiJS: si sposta con la sua
+parallasse, prende la sua dose d'aria, riceve le luci, e alla fine passa tutta insieme
+per il color grading. Il dettaglio sta in [CLAUDE.md](CLAUDE.md).
 
 | File | Responsabilita' |
 | --- | --- |
@@ -190,13 +228,28 @@ un browser.
 | `src/pulsanti.js` | dove stanno i pulsanti, geometria condivisa fra disegno e tocco |
 | `src/mondo.js` | stato della partita e sua evoluzione: urti, raccolte, fine |
 | `src/record.js` | record personale in localStorage |
-| `src/render.js` | tutto il disegno sul canvas |
+| `src/render.js` | il pennello: dipinge la scena, un piano di profondita' per volta |
 | `src/input.js` | dito e tastiera tradotti in comandi |
-| `src/main.js` | canvas, ciclo di gioco, schermo sempre acceso, service worker |
+| `src/main.js` | le due tele, ciclo di gioco, schermo sempre acceso, service worker |
 | `src/rng.js` | generatore deterministico, usato dalla citta' e dai test |
-| `sw.js` | cache dei file: e' cio' che fa funzionare il gioco senza rete |
-| `manifest.json` | nome, icone e `display: standalone` dell'app installata |
+| `src/grafica/applicazione.js` | accensione di PixiJS: WebGPU, e WebGL2 dove non c'e' |
+| `src/grafica/scena.js` | gli otto piani di profondita' e come si rimettono insieme |
+| `src/grafica/tela.js` | il ponte: un canvas 2D che fa da texture a uno sprite |
+| `src/grafica/tavolozza.js` | i colori dominanti e la LUT che ce li porta |
+| `src/grafica/opzioni.js` | gli interruttori per spegnere uno stadio alla volta |
+| `src/grafica/filtri/` | i filtri scritti a mano, ognuno in GLSL **e** in WGSL |
+| `src/scena/fondali.js` | le strisce ripetibili dei piani piatti |
+| `src/scena/luci.js` | chi fa luce: lampioni, fari, monete, aureole |
+| `src/scena/emissive.js` | gli aloni del bloom, dalla stessa lista |
+| `public/manifest.json` | nome, icone e `display: standalone` dell'app installata |
+| `strumenti/scatta.mjs` | screenshot iPhone 15 Pro in pose fissate |
+| `strumenti/confronto.mjs` | affianca due scatti in un'immagine sola |
+| `strumenti/prova.mjs` | esegue i test in un browser vero |
 | `strumenti/genera-icone.py` | ricostruisce le icone dalla grafica del gioco |
+
+Il service worker non e' piu' un file scritto a mano: lo genera `vite-plugin-pwa` a
+partire da quello che finisce davvero in `dist/`, cosi' l'elenco dei file da tenere in
+cache non puo' scollarsi dal gioco.
 
 Qualche scelta che vale la pena conoscere prima di mettere le mani al codice:
 

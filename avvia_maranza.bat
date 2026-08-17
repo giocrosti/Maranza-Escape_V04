@@ -1,7 +1,6 @@
 @echo off
-rem Avvia Maranza escape: server locale + browser.
+rem Avvia Maranza escape: server di sviluppo + browser.
 rem Uso:  doppio clic
-rem       avvia_maranza.bat 8790     per usare un'altra porta
 rem
 rem Il gioco resta raggiungibile solo da questo computer: il server ascolta
 rem soltanto su 127.0.0.1 e non c'e' modo di aprirlo alla rete.
@@ -12,31 +11,30 @@ rem poi apre il browser. Serve perche' la riga del server non restituisce
 rem il controllo finche' il server e' acceso.
 if /i "%~1"=="--browser" goto apri_browser
 
-set PORTA=%~1
-if "%PORTA%"=="" set PORTA=8775
+set PORTA=5173
 
-if not exist "dev-server.py" (
+where npm >nul 2>nul
+if errorlevel 1 (
   echo.
-  echo  Non trovo dev-server.py in questa cartella:
-  echo  %CD%
-  echo  Il file .bat deve stare accanto al gioco.
+  echo  Node.js non trovato.
+  echo  Scaricalo da https://nodejs.org/ ^(versione LTS^), poi riprova.
   echo.
   pause
   exit /b 1
 )
 
-rem Serve Python: prima "python", poi il lanciatore "py"
-set PYTHON=
-where python >nul 2>nul && set PYTHON=python
-if not defined PYTHON where py >nul 2>nul && set PYTHON=py
-if not defined PYTHON (
+if not exist "node_modules" (
   echo.
-  echo  Python non trovato.
-  echo  Scaricalo da https://www.python.org/downloads/ e durante
-  echo  l'installazione spunta "Add Python to PATH", poi riprova.
+  echo  Prima volta: installo quello che serve. Ci vuole un minuto.
   echo.
-  pause
-  exit /b 1
+  call npm install
+  if errorlevel 1 (
+    echo.
+    echo  L'installazione non e' riuscita.
+    echo.
+    pause
+    exit /b 1
+  )
 )
 
 rem Se la porta risponde gia', il server e' acceso: apro solo il browser.
@@ -45,20 +43,20 @@ if not errorlevel 1 (
   echo.
   echo  Il server era gia' acceso sulla porta %PORTA%: apro il gioco.
   echo.
-  start "" "http://localhost:%PORTA%/"
+  start "" "http://127.0.0.1:%PORTA%/"
   exit /b 0
 )
 
 echo.
 echo  MARANZA ESCAPE
 echo.
-echo  Server in avvio su http://localhost:%PORTA%/
+echo  Server in avvio su http://127.0.0.1:%PORTA%/
 echo  Tra qualche secondo si aprira' il browser.
 echo  Per chiudere, chiudi questa finestra.
 echo.
 
-start "" /b cmd /c ""%~f0" --browser %PORTA%"
-%PYTHON% dev-server.py %PORTA%
+start "" /b cmd /c ""%~f0" --browser"
+call npm run dev
 
 rem Si arriva qui solo quando il server si ferma o non parte.
 echo.
@@ -67,10 +65,9 @@ pause
 exit /b 0
 
 :apri_browser
-set PORTA=%~2
-if "%PORTA%"=="" set PORTA=8775
-rem Due secondi di attesa. Si usa ping e non timeout perche' timeout fallisce
-rem quando l'input standard e' rediretto, e stampa un errore per nulla.
-ping -n 3 127.0.0.1 >nul
-start "" "http://localhost:%PORTA%/"
+rem Qualche secondo di attesa: Vite ci mette un attimo al primo avvio, perche'
+rem deve preparare le dipendenze. Si usa ping e non timeout perche' timeout
+rem fallisce quando l'input standard e' rediretto, e stampa un errore per nulla.
+ping -n 6 127.0.0.1 >nul
+start "" "http://127.0.0.1:5173/"
 exit /b 0

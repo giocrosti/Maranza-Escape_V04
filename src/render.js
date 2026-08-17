@@ -27,7 +27,8 @@ import { BUCA, AIUOLA, MONOPATTINO, PONTICELLO, ARCO, ALTEZZA_PONTICELLO, corsie
 import { MONETA, SCUDO, SCATTO, CALAMITA, MADONNINA, SPRITZ } from './percorso.js';
 import { abbassato } from './corridore.js';
 import { minaccia, DISTACCO_INIZIALE } from './inseguitori.js';
-import { areaPausa, areaIstruzioni, areaCasa } from './pulsanti.js';
+import { areaPausa, areaIstruzioni, areaCasa, areaCondivisione } from './pulsanti.js';
+import { morbida } from './interfaccia/animazioni.js';
 import {
   fascia,
   parete,
@@ -81,17 +82,18 @@ import {
   GRIDO_SCONFITTA,
 } from './mondo.js';
 
-/** La citta' si genera una volta sola: e' sempre la stessa strada. */
-const CITTA = creaCitta();
+/** La citta' si genera una volta sola: e' sempre la stessa strada.
+ *  Esportata perche' serve anche a `scena/luci.js`, che deve sapere dove stanno
+ *  i lampioni: rigenerarla li' darebbe la stessa citta' (il seme e' fisso) ma
+ *  due copie di tutto, e nessuno se ne accorgerebbe fino al profilo di memoria. */
+export const CITTA = creaCitta();
 
 /** Oltre questa z gli arredi non si disegnano piu': sono dietro la telecamera.
  *  Non si taglia prima, o i lampioni sparirebbero mentre li stai superando. */
 const CODA_ARREDI = -DISTANZA_CAMERA + 1.1;
 
 const COLORI = {
-  cieloAlto: '#6f9dc8',
-  cieloBasso: '#c8d8e2',
-  foschia: '#dce6ec',
+  // cielo e foschia non stanno piu' qui: sono strisce di `scena/fondali.js`
   asfalto: '#4b4e54',
   asfaltoLontano: '#6b6f76',
   rattoppoChiaro: '#565a61',
@@ -155,40 +157,93 @@ const COLORI_BONUS = {
   spritz: COLORI.spritz,
 };
 
-export function disegnaMondo(ctx, mondo, interfaccia = {}) {
-  const vista = mondo.vista;
-  ctx.clearRect(0, 0, vista.larghezza, vista.altezza);
+// --- i disegni per livello --------------------------------------------------
+//
+// La scena non finisce piu' su una tela sola. Ogni funzione qui sotto dipinge
+// **un** piano di profondita' sulla sua tela, e chi le chiama (`grafica/scena.js`)
+// le rimette insieme con parallasse, aria e luci diverse per ognuna.
+//
+// L'ordine e' quello di prima, dal lontano al vicino: le quinte, poi quello che
+// si raccoglie e si schiva, poi le persone. Non ci sono controlli di
+// profondita': l'ordine di disegno *e'* la profondita', anche fra livelli.
+//
+// Cielo e profili lontani non stanno piu' qui: sono strisce ripetibili disegnate
+// una volta sola in `scena/fondali.js`. La vignetta rossa dei maranza addosso e'
+// diventata un parametro del filtro di bordo, che la fa in un passaggio solo
+// insieme alla vignetta normale.
 
-  disegnaCielo(ctx, vista, mondo.scorrimento);
-  disegnaProfiloLontano(ctx, vista, mondo.scorrimento);
+/** Le quinte: la strada, i marciapiedi, i palazzi e tutto l'arredo del viale.
+ *  E' il piano prospettico di fondo, quello che la profondita' di campo sfoca
+ *  man mano che sale verso l'orizzonte. */
+export function disegnaQuinte(ctx, mondo) {
+  const vista = mondo.vista;
   disegnaStrada(ctx, vista, mondo.scorrimento);
   disegnaCitta(ctx, vista, mondo.scorrimento);
   disegnaLineaAerea(ctx, vista);
+}
+
+/** Il piano di gioco: quello che si salta, si schiva e si raccoglie.
+ *  E' l'unico livello che resta perfettamente a fuoco. */
+export function disegnaCampo(ctx, mondo) {
   disegnaPercorso(ctx, mondo);
+}
+
+/** Le persone: l'omino e i maranza alle spalle. Stanno su una tela loro perche'
+ *  sono le uniche a passare per l'illuminazione piena — normale ricavata
+ *  dall'alpha, sole, rim light. */
+export function disegnaPersonaggi(ctx, mondo) {
   // Sulla schermata iniziale e sulle istruzioni la strada e' solo lo sfondo:
   // l'omino e gli inseguitori li' non ci vanno, o si ritroverebbero in mezzo
   // al capannello senza motivo.
-  if (!fuoriDallaCorsa(mondo)) {
-    disegnaCorridore(ctx, mondo);
-    disegnaInseguitori(ctx, mondo);
-  }
-  disegnaVignetta(ctx, mondo);
+  if (fuoriDallaCorsa(mondo)) return;
+  disegnaCorridore(ctx, mondo);
+  disegnaInseguitori(ctx, mondo);
+}
+
+/** Punteggio, pulsanti e schermate. Vanno su una tela 2D fuori da Pixi e fuori
+ *  dal post-processing: una scritta con l'aberrazione cromatica addosso non si
+ *  legge, e il punteggio e' l'unica cosa che deve essere leggibile sempre. */
+export function disegnaInterfaccia(ctx, mondo, interfaccia = {}) {
+  const vista = mondo.vista;
+  const animazioni = interfaccia.animazioni;
+  ctx.clearRect(0, 0, vista.larghezza, vista.altezza);
 
   // Il pannello serve solo mentre si gioca: sulle schermate i numeri ci sono
   // gia', piu' grandi, e ripeterli in piccolo e' solo rumore. Il pulsante
   // invece resta anche in pausa, perche' e' quello che fa riprendere.
-  if (mondo.stato === 'in-gioco' || mondo.stato === 'apparizione') {
+  const apertura = animazioni ? animazioni.hud : 1;
+  if (apertura > 0.01) {
+    ctx.save();
+    ctx.globalAlpha = apertura;
     disegnaHud(ctx, mondo, interfaccia);
+    ctx.restore();
   }
   if (mondo.stato === 'in-gioco' || mondo.stato === 'pausa') {
     disegnaPulsantePausa(ctx, mondo, interfaccia);
   }
-
   if (mondo.stato === 'apparizione') disegnaApparizione(ctx, mondo);
+
+  // Le schermate sovrapposte entrano tutte allo stesso modo: sbiadiscono
+  // dentro e salgono di un soffio. Il rimpicciolimento e' minimo apposta —
+  // sotto il 4% si legge come "e' arrivata", sopra si legge come "e' esplosa".
+  const entrata = animazioni ? animazioni.schermata : 1;
+  if (entrata <= 0.001) return;
+
+  ctx.save();
+  if (entrata < 0.999) {
+    const curva = morbida(entrata);
+    ctx.globalAlpha = curva;
+    const scala = 0.96 + curva * 0.04;
+    ctx.translate(vista.larghezza / 2, vista.altezza / 2);
+    ctx.scale(scala, scala);
+    ctx.translate(-vista.larghezza / 2, -vista.altezza / 2 + (1 - curva) * vista.altezza * 0.02);
+  }
+
   if (mondo.stato === 'attesa') disegnaSchermataIniziale(ctx, mondo, interfaccia);
   if (mondo.stato === 'istruzioni') disegnaIstruzioni(ctx, mondo);
   if (mondo.stato === 'pausa') disegnaSchermataPausa(ctx, mondo, interfaccia);
   if (mondo.stato === 'finita') disegnaSchermataFine(ctx, mondo, interfaccia);
+  ctx.restore();
 }
 
 /** Un pulsante rettangolare con la sua scritta. */
@@ -205,63 +260,6 @@ function disegnaPulsante(ctx, area, testo, unita, evidenza = false) {
   ctx.fillStyle = COLORI.testo;
   corpoCheCiSta(ctx, testo, area.altezza * 0.42, area.larghezza * 0.86, 700);
   ctx.fillText(testo, area.x + area.larghezza / 2, area.y + area.altezza / 2);
-}
-
-// --- cielo -----------------------------------------------------------------
-
-function disegnaCielo(ctx, vista, scorrimento) {
-  const cielo = ctx.createLinearGradient(0, 0, 0, vista.orizzonte + 10);
-  cielo.addColorStop(0, COLORI.cieloAlto);
-  cielo.addColorStop(1, COLORI.cieloBasso);
-  ctx.fillStyle = cielo;
-  ctx.fillRect(0, 0, vista.larghezza, vista.orizzonte + 10);
-
-  disegnaNuvole(ctx, vista, scorrimento);
-
-  // La foschia sopra i tetti: e' cio' che fa sembrare lontano l'orizzonte.
-  // A Milano, poi, la foschia non e' una licenza poetica.
-  const velo = ctx.createLinearGradient(0, vista.orizzonte - vista.altezza * 0.16, 0, vista.orizzonte + 6);
-  velo.addColorStop(0, 'rgba(220,230,236,0)');
-  velo.addColorStop(1, COLORI.foschia);
-  ctx.fillStyle = velo;
-  ctx.fillRect(0, vista.orizzonte - vista.altezza * 0.16, vista.larghezza, vista.altezza * 0.16 + 6);
-}
-
-function disegnaNuvole(ctx, vista, scorrimento) {
-  const nuvole = [
-    [0.12, 0.1, 1.2],
-    [0.45, 0.16, 0.9],
-    [0.78, 0.08, 1.4],
-    [1.15, 0.19, 0.8],
-  ];
-  ctx.fillStyle = 'rgba(255,255,255,0.5)';
-  for (const [posizione, quota, taglia] of nuvole) {
-    const larghezza = vista.larghezza * 0.3 * taglia;
-    const x = ((posizione - (scorrimento * 0.06) / vista.larghezza) % 1.6) * vista.larghezza * 1.2 - larghezza;
-    const y = vista.orizzonte * quota + vista.altezza * 0.04;
-    ctx.beginPath();
-    ctx.ellipse(x, y, larghezza * 0.5, larghezza * 0.13, 0, 0, Math.PI * 2);
-    ctx.ellipse(x + larghezza * 0.18, y - larghezza * 0.05, larghezza * 0.3, larghezza * 0.12, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
-/** Il profilo della citta' all'orizzonte: non e' fatto di palazzi veri, e' una
- *  sagoma che scorre lentissima. Serve a non lasciare vuoto il punto di fuga. */
-function disegnaProfiloLontano(ctx, vista, scorrimento) {
-  const base = vista.orizzonte + 1;
-  const unita = vista.larghezza / 16;
-  const alte = [0.5, 1.2, 0.8, 1.7, 0.6, 1, 2.4, 0.7, 1.4, 0.9, 1.1, 1.9, 0.6, 1.3];
-
-  for (const [fattore, tinta] of [[0.3, 'rgba(150,166,180,0.42)'], [0.62, 'rgba(128,146,162,0.5)']]) {
-    const scorri = (scorrimento * fattore) % (unita * 6);
-    ctx.fillStyle = tinta;
-    for (let i = -2; i < 22; i += 1) {
-      const x = i * unita - scorri;
-      const altezza = alte[((i % alte.length) + alte.length) % alte.length] * unita * 0.9;
-      ctx.fillRect(x, base - altezza, unita * 0.9, altezza);
-    }
-  }
 }
 
 // --- strada ----------------------------------------------------------------
@@ -1462,25 +1460,10 @@ function disegnaInseguitori(ctx, mondo) {
   });
 }
 
-/** Bordi che si scuriscono e si arrossano quando i maranza sono vicini. */
-function disegnaVignetta(ctx, mondo) {
-  const vicinanza = minaccia(mondo.inseguitori);
-  if (vicinanza < 0.35) return;
-  const forza = (vicinanza - 0.35) / 0.65;
-  const vista = mondo.vista;
-  const alone = ctx.createRadialGradient(
-    vista.larghezza / 2,
-    vista.altezza * 0.45,
-    vista.altezza * 0.25,
-    vista.larghezza / 2,
-    vista.altezza * 0.45,
-    vista.altezza * 0.8,
-  );
-  alone.addColorStop(0, 'rgba(150,20,20,0)');
-  alone.addColorStop(1, `rgba(130,18,18,${0.55 * forza})`);
-  ctx.fillStyle = alone;
-  ctx.fillRect(0, 0, vista.larghezza, vista.altezza);
-}
+/* La vignetta rossa del fiato sul collo non si disegna piu' qui: e' un
+   parametro del filtro di bordo, che la fa nello stesso passaggio della
+   vignetta normale invece di sovrapporne una seconda. Il numero glielo passa
+   `grafica/scena.js`, direttamente da `minaccia(mondo.inseguitori)`. */
 
 // --- interfaccia -----------------------------------------------------------
 
@@ -1513,8 +1496,13 @@ function disegnaHud(ctx, mondo, interfaccia) {
   ctx.shadowColor = 'rgba(0,0,0,0.45)';
   ctx.shadowBlur = unita * 0.02;
 
+  // il punteggio mostrato rincorre quello vero: raccogliendo una moneta si vede
+  // il numero correre, e la moneta diventa una piccola soddisfazione
+  const punteggio = interfaccia.animazioni
+    ? Math.round(interfaccia.animazioni.punteggio)
+    : mondo.punteggio;
   ctx.font = `700 ${unita * 0.095}px system-ui, -apple-system, sans-serif`;
-  ctx.fillText(String(mondo.punteggio), m.sinistro + bordo, alto);
+  ctx.fillText(String(punteggio), m.sinistro + bordo, alto);
 
   ctx.font = `600 ${unita * 0.042}px system-ui, -apple-system, sans-serif`;
   ctx.fillStyle = 'rgba(247,248,250,0.8)';
@@ -1545,7 +1533,12 @@ function disegnaBarraDistacco(ctx, mondo, interfaccia, unita) {
   const x = vista.larghezza - m.destro - unita * 0.05 - larghezza;
   const y = pulsante.y + pulsante.raggio + unita * 0.04;
 
-  const parte = Math.max(0, Math.min(1, mondo.inseguitori.distacco / DISTACCO_INIZIALE));
+  // la barra insegue il distacco invece di saltarci: cosi' si vede *quanto* si
+  // e' perso con una penalita', non solo che si e' perso qualcosa
+  const distacco = interfaccia.animazioni
+    ? interfaccia.animazioni.distacco
+    : mondo.inseguitori.distacco;
+  const parte = Math.max(0, Math.min(1, distacco / DISTACCO_INIZIALE));
   ctx.fillStyle = 'rgba(20,22,26,0.45)';
   riquadroTondo(ctx, x, y, larghezza, altezza, altezza / 2);
   ctx.fill();
@@ -1997,5 +1990,11 @@ function disegnaSchermataFine(ctx, mondo, interfaccia) {
   ctx.fillText('tocca per riprovare', vista.larghezza / 2, vista.altezza * 0.7);
   ctx.globalAlpha = 1;
 
+  // Il pulsante di condivisione compare solo dove la condivisione esiste: su
+  // Safari c'e', altrove spesso no, e un pulsante che non fa niente e' peggio
+  // di un pulsante che manca.
+  if (interfaccia.puoCondividere) {
+    disegnaPulsante(ctx, areaCondivisione(vista), interfaccia.esitoCondivisione || 'manda il record', unita, true);
+  }
   disegnaPulsante(ctx, areaCasa(vista, false), 'torna alla home', unita);
 }

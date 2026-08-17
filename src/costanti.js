@@ -53,6 +53,16 @@ export const ACCELERAZIONE = 0.16;
 /** Quanti metri di strada si disegnano davanti all'omino. */
 export const DISTANZA_VISIBILE = 95;
 
+/** Quanto dura il fermo immagine quando si schiva di misura, in secondi.
+ *  Tre fotogrammi e mezzo a 60 al secondo: sotto i tre non si sente, sopra i
+ *  cinque non e' piu' un accento, e' un inciampo. Il conto va tenuto sul tempo
+ *  vero e non sui fotogrammi, o su uno schermo a 120 Hz dura la meta'. */
+export const DURATA_FERMO_IMMAGINE = 0.058;
+
+/** Sotto quanto margine una schivata conta come "di misura". E' un numero da
+ *  0 (non e' mancato niente) a 1 (l'ostacolo era lontanissimo). */
+export const SOGLIA_SFIORATA = 0.42;
+
 /** Salto massimo di tempo accettato in un passo, in secondi. Senza questo
  *  limite, tornare sulla scheda dopo un minuto farebbe avanzare il mondo di
  *  sessanta secondi in un colpo solo, con l'omino teletrasportato dentro un

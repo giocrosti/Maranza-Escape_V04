@@ -1,0 +1,30 @@
+{
+  "name": "Maranza Escape",
+  "short_name": "Maranza",
+  "description": "Corri per Milano su tre corsie: salta le buche, schiva i monopattini, passa sotto i lampioni caduti.",
+  "lang": "it",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "landscape",
+  "background_color": "#7ea6cc",
+  "theme_color": "#7ea6cc",
+  "categories": ["games"],
+  "icons": [
+    { "src": "icone/icona-120.png", "sizes": "120x120", "type": "image/png", "purpose": "any" },
+    { "src": "icone/icona-152.png", "sizes": "152x152", "type": "image/png", "purpose": "any" },
+    { "src": "icone/icona-167.png", "sizes": "167x167", "type": "image/png", "purpose": "any" },
+    { "src": "icone/icona-180.png", "sizes": "180x180", "type": "image/png", "purpose": "any" },
+    { "src": "icone/icona-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icone/icona-256.png", "sizes": "256x256", "type": "image/png", "purpose": "any" },
+    { "src": "icone/icona-384.png", "sizes": "384x384", "type": "image/png", "purpose": "any" },
+    { "src": "icone/icona-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    {
+      "src": "icone/icona-maschera-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

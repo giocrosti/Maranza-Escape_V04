@@ -3,3 +3,10 @@ __pycache__/
 .DS_Store
 Thumbs.db
 desktop.ini
+node_modules/
+dist/
+dev-dist/
+# gli scatti di confronto si rifanno quando servono, non si versionano
+schermate/
+# i pacchetti di asset scaricati per valutarli: si riscaricano, non si versionano
+asset-sorgenti/
