@@ -23,7 +23,18 @@ import {
   DISTANZA_CAMERA,
 } from './proiezione.js';
 import { SEMI_STRADA, LARGHEZZA_CORSIA, DISTANZA_VISIBILE, ALTEZZA_OMINO } from './costanti.js';
-import { BUCA, AIUOLA, MONOPATTINO, PONTICELLO, ARCO, ALTEZZA_PONTICELLO, corsieOstacolo } from './ostacoli.js';
+import {
+  BUCA,
+  AIUOLA,
+  MONOPATTINO,
+  PONTICELLO,
+  ARCO,
+  TRAM,
+  ALTEZZA_PONTICELLO,
+  META_BINARI,
+  INGRESSO_BINARI,
+  corsieOstacolo,
+} from './ostacoli.js';
 import { MONETA, SCUDO, SCATTO, CALAMITA, MADONNINA, SPRITZ } from './percorso.js';
 import { abbassato } from './corridore.js';
 import { minaccia, DISTACCO_INIZIALE } from './inseguitori.js';
@@ -713,10 +724,23 @@ function disegnaAuto(ctx, vista, auto, z) {
 
 /** Un tram fermo sulla sua sede. Arancione ATM: non serve altro perche' si
  *  capisca in che citta' si sta correndo. */
-function disegnaTram(ctx, vista, z) {
+/** Un tram. Di mestiere ne fa due: sta sulla sua sede a lato della strada come
+ *  scenografia, e ogni tanto attraversa la carreggiata come ostacolo.
+ *
+ *  `centro` e' la mezzeria della cassa e `semi` la sua mezza larghezza; il
+ *  verso — da che parte guarda la fiancata che si vede — si ricava dal segno di
+ *  `centro`, perche' la faccia visibile e' sempre quella rivolta al mezzo della
+ *  strada. Coi valori di default esce il tram di prima, sulla sede di sinistra. */
+function disegnaTram(ctx, vista, z, opzioni = {}) {
+  const {
+    centro = LATO_TRAM * (BORDO_STRADA + 1.45),
+    semi = 0.9,
+    frontale = false,
+  } = opzioni;
+  const verso = Math.sign(centro) || 1;
   const lunghezza = 19;
-  const dentro = LATO_TRAM * (BORDO_STRADA + 0.55);
-  const fuori = LATO_TRAM * (BORDO_STRADA + 2.35);
+  const dentro = centro - verso * semi;
+  const fuori = centro + verso * semi;
   const zVicino = z - lunghezza / 2;
   const zLontano = z + lunghezza / 2;
 
@@ -736,7 +760,7 @@ function disegnaTram(ctx, vista, z) {
   // La livrea del 1500, quello vero: arancione sotto, panna dalla cintura dei
   // finestrini in su, e i telai in legno scuro. E' la combinazione a farlo
   // riconoscere, non la forma della cassa.
-  const filo = dentro - LATO_TRAM * 0.02;
+  const filo = dentro - verso * 0.02;
   ctx.fillStyle = COLORI.tramFascia;
   parete(ctx, vista, filo, 2.42, 3.3, zVicino, zLontano);
   ctx.fillStyle = COLORI.tramLegno;
@@ -754,9 +778,9 @@ function disegnaTram(ctx, vista, z) {
     // le due porte, piu' scure e piu' alte
     const porta = i === 1 || i === 5;
     ctx.fillStyle = COLORI.tramLegno;
-    parete(ctx, vista, dentro - LATO_TRAM * 0.03, porta ? 0.62 : 1.28, 2.46, da - 0.12, a + 0.12);
+    parete(ctx, vista, dentro - verso * 0.03, porta ? 0.62 : 1.28, 2.46, da - 0.12, a + 0.12);
     ctx.fillStyle = COLORI.tramVetro;
-    parete(ctx, vista, dentro - LATO_TRAM * 0.04, porta ? 0.95 : 1.42, 2.34, da, a);
+    parete(ctx, vista, dentro - verso * 0.04, porta ? 0.95 : 1.42, 2.34, da, a);
   }
 
   // il numero di vettura sulla fiancata
@@ -772,16 +796,16 @@ function disegnaTram(ctx, vista, z) {
   // Il tetto: una calotta piu' stretta della cassa, che sporge sui due lati.
   // E' quella a togliere al tram l'aria di scatola da scarpe.
   ctx.fillStyle = '#cfc5b0';
-  fascia(ctx, vista, dentro - LATO_TRAM * 0.06, fuori + LATO_TRAM * 0.06, zVicino, zLontano, 3.32);
+  fascia(ctx, vista, dentro - verso * 0.06, fuori + verso * 0.06, zVicino, zLontano, 3.32);
   ctx.fillStyle = '#b9ae99';
-  parete(ctx, vista, dentro - LATO_TRAM * 0.06, 3.24, 3.32, zVicino, zLontano);
+  parete(ctx, vista, dentro - verso * 0.06, 3.24, 3.32, zVicino, zLontano);
 
   // lo zoccolo scuro e i due carrelli sotto la cassa
   ctx.fillStyle = COLORI.tramLegno;
   parete(ctx, vista, filo, 0.3, 0.44, zVicino, zLontano);
   ctx.fillStyle = '#26282d';
   for (const zCarrello of [zVicino + lunghezza * 0.22, zLontano - lunghezza * 0.22]) {
-    parete(ctx, vista, dentro - LATO_TRAM * 0.06, 0.02, 0.34, zCarrello - 1.1, zCarrello + 1.1);
+    parete(ctx, vista, dentro - verso * 0.06, 0.02, 0.34, zCarrello - 1.1, zCarrello + 1.1);
     for (const zRuota of [zCarrello - 0.7, zCarrello + 0.7]) {
       const ruota = proietta(vista, dentro, 0.32, zRuota);
       if (ruota.scala <= 0) continue;
@@ -800,11 +824,11 @@ function disegnaTram(ctx, vista, z) {
     ctx.fillStyle = COLORI.tramLegno;
     testa(ctx, vista, zVicino, dentro, fuori, 2.3, 2.46);
     ctx.fillStyle = COLORI.tramVetro;
-    testa(ctx, vista, zVicino, dentro - LATO_TRAM * 0.25, fuori + LATO_TRAM * 0.25, 1.5, 2.3);
+    testa(ctx, vista, zVicino, dentro - verso * 0.25, fuori + verso * 0.25, 1.5, 2.3);
 
     // la cassa della linea, nera con il numero
     ctx.fillStyle = '#1d2024';
-    testa(ctx, vista, zVicino, dentro - LATO_TRAM * 0.5, fuori + LATO_TRAM * 0.5, 2.62, 3.12);
+    testa(ctx, vista, zVicino, dentro - verso * 0.5, fuori + verso * 0.5, 2.62, 3.12);
     const pLinea = proietta(vista, centro, 2.87, zVicino);
     if (pLinea.scala > 7) {
       ctx.fillStyle = '#f2ead0';
@@ -814,8 +838,8 @@ function disegnaTram(ctx, vista, z) {
       ctx.fillText('19', pLinea.x, pLinea.y);
     }
 
-    // fanali e respingente
-    ctx.fillStyle = '#c0392b';
+    // fanali: rossi se e' la coda, chiari se e' il muso che ci viene addosso
+    ctx.fillStyle = frontale ? '#f4e4b0' : '#c0392b';
     for (const lato of [-0.55, 0.55]) {
       const fanale = proietta(vista, centro + lato, 1.15, zVicino);
       ctx.beginPath();
@@ -823,7 +847,7 @@ function disegnaTram(ctx, vista, z) {
       ctx.fill();
     }
     ctx.fillStyle = COLORI.tramLegno;
-    testa(ctx, vista, zVicino, dentro - LATO_TRAM * 0.1, fuori + LATO_TRAM * 0.1, 0.5, 0.72);
+    testa(ctx, vista, zVicino, dentro - verso * 0.1, fuori + verso * 0.1, 0.5, 0.72);
   }
 
   // l'asta del trolley verso il filo
@@ -851,6 +875,14 @@ function disegnaPercorso(ctx, mondo) {
   const vista = mondo.vista;
   const cose = [];
 
+  // I binari per primi: sono dipinti sull'asfalto, e tutto il resto ci sta
+  // sopra. Vanno disegnati anche quando il tram e' ancora lontanissimo, perche'
+  // sono loro l'avviso che arriva.
+  for (const ostacolo of mondo.percorso.ostacoli) {
+    if (ostacolo.tipo !== TRAM) continue;
+    disegnaBinariSullaStrada(ctx, vista, ostacolo, mondo.distanza);
+  }
+
   for (const ostacolo of mondo.percorso.ostacoli) {
     const z = ostacolo.z - mondo.distanza;
     if (z > DISTANZA_VISIBILE || !davantiAllaCamera(z + ostacolo.profondita)) continue;
@@ -867,8 +899,90 @@ function disegnaPercorso(ctx, mondo) {
   for (const cosa of cose) cosa.disegna();
 }
 
+/** Dove passa la mezzeria dei binari, alla distanza `z` (assoluta, non
+ *  relativa).
+ *
+ *  Ai due capi del tratto i binari stanno sulla loro sede, a lato; in mezzo
+ *  sono in carreggiata; e fra le due cose c'e' una diagonale. Quella in entrata
+ *  e' la piu' importante di tutto il tram: il giocatore la incontra **prima**
+ *  di vedere il tram, e gli dice con qualche secondo d'anticipo che due corsie
+ *  stanno per chiudersi.
+ *
+ *  Il primo tentativo metteva la curva al capo lontano, che e' quello che il
+ *  giocatore raggiunge per ultimo: cadeva oltre la distanza visibile e non la
+ *  vedeva mai nessuno. Va messa dove si passa, non dove finisce. */
+function mezzeriaBinari(tram, z) {
+  const dentro = bordoSinistroDiCorsia(tram.corsiaInizio) + LARGHEZZA_CORSIA;
+  const daLato = LATO_TRAM * (BORDO_STRADA + 1.4);
+  const scarto = Math.abs(z - tram.binariCentro);
+  const dirittura = META_BINARI - INGRESSO_BINARI;
+  const quanto = 1 - Math.min(1, Math.max(0, (scarto - dirittura) / INGRESSO_BINARI));
+  return daLato + (dentro - daLato) * quanto;
+}
+
+/** Un quadrilatero orizzontale che puo' spostarsi di lato lungo la strada:
+ *  serve ai binari nel tratto in cui entrano di sbieco, dove `fascia` non basta
+ *  perche' quella tiene la stessa x ai due capi. */
+function nastro(ctx, vista, xVicino, xLontano, mezzo, zVicino, zLontano, y) {
+  const a = proietta(vista, xVicino - mezzo, y, zVicino);
+  const b = proietta(vista, xVicino + mezzo, y, zVicino);
+  const c = proietta(vista, xLontano + mezzo, y, zLontano);
+  const d = proietta(vista, xLontano - mezzo, y, zLontano);
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.lineTo(c.x, c.y);
+  ctx.lineTo(d.x, d.y);
+  ctx.closePath();
+  ctx.fill();
+}
+
+/** Mezzo scartamento, in metri. Quello vero del tram milanese e' 1,445. */
+const SEMI_SCARTAMENTO = 0.72;
+
+/** I binari sulla carreggiata. Si disegnano prima di tutti gli ostacoli perche'
+ *  sono asfalto, non roba appoggiata sopra. */
+function disegnaBinariSullaStrada(ctx, vista, tram, distanza) {
+  const da = Math.max(tram.binariCentro - META_BINARI - distanza, CODA_ARREDI);
+  const a = Math.min(tram.binariCentro + META_BINARI - distanza, DISTANZA_VISIBILE);
+  if (a <= da) return;
+
+  // Passi corti vicino e lunghi lontano: la curva d'ingresso sta in fondo, dove
+  // pochi metri valgono pochi pixel, e li' bastano segmenti radi.
+  const passi = 20;
+  for (let i = 0; i < passi; i += 1) {
+    const zA = da + ((a - da) * i) / passi;
+    const zB = da + ((a - da) * (i + 1)) / passi;
+    const xA = mezzeriaBinari(tram, zA + distanza);
+    const xB = mezzeriaBinari(tram, zB + distanza);
+
+    ctx.fillStyle = COLORI.sede;
+    nastro(ctx, vista, xA, xB, SEMI_SCARTAMENTO + 0.55, zA, zB, 0.012);
+    ctx.fillStyle = COLORI.rotaia;
+    for (const segno of [-1, 1]) {
+      nastro(
+        ctx,
+        vista,
+        xA + segno * SEMI_SCARTAMENTO,
+        xB + segno * SEMI_SCARTAMENTO,
+        0.07,
+        zA,
+        zB,
+        0.02,
+      );
+    }
+  }
+}
+
 function disegnaOstacolo(ctx, vista, ostacolo, z, mondo) {
   if (ostacolo.tipo === BUCA) return disegnaBuca(ctx, vista, ostacolo, z);
+  if (ostacolo.tipo === TRAM) {
+    // La cassa e' larga quanto le due corsie che l'urto gli riconosce. Un tram
+    // disegnato stretto e che prende largo sarebbe una fregatura: quello che si
+    // vede deve essere quello che ti prende.
+    const centro = bordoSinistroDiCorsia(ostacolo.corsiaInizio) + LARGHEZZA_CORSIA;
+    return disegnaTram(ctx, vista, z, { centro, semi: 1.85, frontale: true });
+  }
   if (ostacolo.tipo === AIUOLA) return disegnaAiuola(ctx, vista, ostacolo, z);
   if (ostacolo.tipo === MONOPATTINO) return disegnaMonopattinoConMaranza(ctx, vista, ostacolo, z, mondo);
   if (ostacolo.tipo === ARCO) {

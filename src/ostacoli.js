@@ -8,6 +8,9 @@
 //   ponticello   -> ci si abbassa e si passa sotto
 //   arco         -> si passa in mezzo, e in mezzo si sta solo dalla corsia
 //                   centrale: i due piloni chiudono le altre due
+//   tram         -> si cambia corsia, e in fretta: e' lungo diciannove metri e
+//                   viene incontro sui binari, che a Milano ogni tanto lasciano
+//                   il lato e attraversano la carreggiata
 //
 // Quel che non copre tutte e tre le corsie si puo' sempre anche scansare di
 // lato: e' vero per il monopattino, per un'aiuola stretta, per un ponticello
@@ -22,6 +25,7 @@ export const AIUOLA = 'aiuola';
 export const MONOPATTINO = 'monopattino';
 export const PONTICELLO = 'ponticello';
 export const ARCO = 'arco';
+export const TRAM = 'tram';
 
 /** Quanto sta in alto l'intradosso del ponticello, in metri: sopra l'omino
  *  abbassato (0,75 m), sotto l'omino in piedi (1,75 m). */
@@ -50,6 +54,27 @@ const PROFONDITA_AIUOLA = 1.8;
 
 /** Lo spessore dei piloni dell'arco. */
 const PROFONDITA_ARCO = 4;
+
+/** Quanto e' lungo un tram, in metri. E' la misura vera di una vettura, ed e'
+ *  tanta: passargli accanto dura, e deve durare. */
+const PROFONDITA_TRAM = 19;
+
+/** Quante corsie prende. Due su tre: ne resta sempre una, ma una sola. */
+const CORSIE_TRAM = 2;
+
+/** La sua velocita' verso di noi. Piu' del monopattino, meno di quanto
+ *  sembrera': la somma con la corsa fa gia' abbastanza paura. */
+export const VELOCITA_TRAM = 9;
+
+/** Quanto e' lungo, in metri, il tratto di binari sulla carreggiata — meta' per
+ *  parte rispetto al punto d'incontro. Deve bastare a coprire tutto il viaggio
+ *  del tram, o lo si vedrebbe correre sull'asfalto nudo. */
+export const META_BINARI = 50;
+
+/** In quanti metri i binari passano dal lato della strada alla carreggiata.
+ *  E' la curva che si vede arrivare, ed e' l'avviso: da qui in avanti quella
+ *  corsia non e' piu' tua. */
+export const INGRESSO_BINARI = 22;
 
 /** Le corsie chiuse dai piloni dell'Arco della Pace: la centrale resta
  *  libera, ed e' l'unico modo di passare. */
@@ -119,6 +144,27 @@ export function creaAiuola(z, corsiaInizio, quanteCorsie) {
   };
 }
 
+/** Un tram sulla carreggiata. `corsiaInizio` e' la prima delle due corsie che
+ *  occupa: da li' passano i binari.
+ *
+ *  `binariCentro` non e' `z`, ed e' voluto. La z del tram si sposta — viene
+ *  incontro — mentre i binari sono dipinti sull'asfalto e stanno fermi. Il
+ *  centro dei binari e' il punto dove il tram e il giocatore si incontreranno,
+ *  cioe' la z di generazione **prima** della spinta che compensa
+ *  l'avvicinamento. */
+export function creaTram(z, corsiaInizio) {
+  return {
+    tipo: TRAM,
+    z,
+    profondita: PROFONDITA_TRAM,
+    corsiaInizio,
+    quanteCorsie: CORSIE_TRAM,
+    colpito: false,
+    velocitaVerso: VELOCITA_TRAM,
+    binariCentro: z,
+  };
+}
+
 export function creaMonopattino(z, corsia) {
   return {
     tipo: MONOPATTINO,
@@ -150,8 +196,8 @@ export function avvicinaOstacoli(ostacoli, distanzaPercorsa, dt) {
  *  Senza questo, il generatore garantisce la distanza fra un ostacolo e
  *  l'altro ma il monopattino se la mangia venendoti incontro, e ti arriva
  *  addosso mezzo secondo dopo il precedente. */
-export function spintaPerAvvicinamento(velocitaCorsa) {
-  return (DISTANZA_AVVICINAMENTO * VELOCITA_MONOPATTINO) / (velocitaCorsa + VELOCITA_MONOPATTINO);
+export function spintaPerAvvicinamento(velocitaCorsa, velocitaOstacolo = VELOCITA_MONOPATTINO) {
+  return (DISTANZA_AVVICINAMENTO * velocitaOstacolo) / (velocitaCorsa + velocitaOstacolo);
 }
 
 export function creaPonticello(z, corsiaInizio, quanteCorsie) {
@@ -241,7 +287,7 @@ export function margineScampato(ostacolo, corridore) {
       const spazio = ALTEZZA_PONTICELLO - altezzaTesta(corridore);
       return spazio <= 0 ? 1 : Math.min(1, spazio / 0.35);
     }
-    // monopattino e piloni: dentro la corsia non si scampa
+    // monopattino, tram e piloni: dentro la corsia non si scampa
     return 1;
   }
 

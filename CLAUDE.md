@@ -95,6 +95,31 @@ src/
     cassa.js            la cassa bluetooth degli inseguitori, sintetizzata
 ```
 
+## Gli ostacoli
+
+Ognuno si passa con **un gesto suo**, sempre lo stesso, e il gesto proprio
+funziona anche quando l'ostacolo prende tutta la strada:
+
+| ostacolo | gesto | note |
+|---|---|---|
+| buca, aiuola | si salta | |
+| ponticello | ci si abbassa | |
+| monopattino | si cambia corsia | viene incontro |
+| arco | corsia centrale | i piloni chiudono le altre due |
+| tram | si cambia corsia | due corsie su tre, 19 metri, viene incontro |
+
+Il tram ha una regola sua: **i binari sono l'avviso**. Non stanno attaccati al
+tram, stanno dipinti sull'asfalto attorno al punto d'incontro (`binariCentro`,
+che e' la z di generazione *prima* della spinta che compensa l'avvicinamento), e
+ai due capi curvano fuori verso la sede laterale. La curva d'ingresso va messa
+dove il giocatore **passa**, non dove il tratto finisce: al capo lontano
+cadrebbe oltre la distanza visibile e non la vedrebbe mai nessuno.
+
+Un ostacolo che viene incontro nasce piu' lontano di uno fermo, di quel tanto
+che si mangera' avvicinandosi (`spintaPerAvvicinamento`), e la spinta si calcola
+sulla **sua** velocita': il tram va piu' del monopattino, e senza questo
+arriverebbe addosso con meno preavviso.
+
 ## Il feedback di gioco
 
 Il gioco e' una **fuga**, e ogni effetto deve servire alla tensione. Se un
@@ -176,7 +201,7 @@ quel filtro rimetteva le cose a posto per caso.
 
 ### I piani di profondita'
 
-Otto, dal fondo al primo piano. Il numero e' il fattore di parallasse: **piu' e'
+Sette, dal fondo al primo piano. Il numero e' il fattore di parallasse: **piu' e'
 vicino, piu' corre**. I piani in prospettiva valgono 1 e sono il metro di
 paragone — la loro parallasse la fa gia' la proiezione.
 
@@ -188,16 +213,20 @@ paragone — la loro parallasse la fa gia' la proiezione.
 | 3 | scena | 1,00 | strada, palazzi, ostacoli: prospettiva |
 | 4 | personaggi | 1,00 | omino e maranza: illuminazione piena |
 | 5 | emissive | 1,00 | solo cio' che brilla, per il bloom |
-| 6 | vicino | 1,85 | fusti che passano ai lati |
-| 7 | vicinissimo | 2,90 | fogliame appeso in alto, fuori fuoco |
+| 6 | vicinissimo | 2,90 | fogliame appeso in alto, fuori fuoco |
 
-I piani 0-2 e 6-7 sono texture disegnate **una volta sola** e fatte scorrere: e'
+I piani 0-2 e 6 sono texture disegnate **una volta sola** e fatte scorrere: e'
 quello che permette otto piani senza pagarli otto volte. I piani 3-5 si
 ridipingono a ogni fotogramma su una `Tela`.
 
 Un aggiunta a `scena/fondali.js` deve essere **ripetibile**: ogni sagoma che
 sfora il bordo destro va ridisegnata spostata di una larghezza, o si vede la
 giunta passare ogni pochi secondi.
+
+C'era anche un piano di fusti verticali, ed e' stato tolto: un fondale che
+scorre non ha bordi, quindi qualunque cosa ci si metta prima o poi passa davanti
+alla corsia di mezzo. Un primo piano si mette **in alto o all'orizzonte**, dove
+non si gioca.
 
 ### Regole degli shader
 

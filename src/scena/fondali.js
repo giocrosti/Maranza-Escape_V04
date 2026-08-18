@@ -272,56 +272,7 @@ function disegnaSagoma(ctx, tipo, x, base, larghezza, alto, rng) {
   ctx.fillRect(x, cima, larghezza, alto);
 }
 
-// --- primi piani ------------------------------------------------------------
-
-/** Il primo piano vicino: fusti di platano e pali che passano ai lati.
- *  Restano lontani dal centro apposta — un primo piano che copre la corsia di
- *  mezzo non e' atmosfera, e' un ostacolo che non si puo' saltare. */
-export function texturaPaliVicini(larghezza, altezza) {
-  const canvas = tela(larghezza, altezza);
-  const ctx = canvas.getContext('2d');
-  const rng = creaRng(41);
-
-  // Due soli su tutta la striscia, che e' larga due schermi: sullo schermo ne
-  // passa uno ogni tanto, ed e' quello che deve succedere. Il primo tentativo ne
-  // metteva sei "verso i bordi", ma un fondale che scorre non ha bordi: prima o
-  // poi passano tutti davanti alla corsia di mezzo, e in sei erano graffi sulla
-  // lente, non alberi vicini.
-  //
-  // **Sottili e scuri, non larghi e pallidi.** La versione precedente era spessa
-  // il 2% della striscia — cinquanta pixel a schermo — e con la sfocatura sopra
-  // diventava una fascia grigia che attraversava l'inquadratura ogni pochi
-  // secondi. Non si leggeva come un albero vicino: si leggeva come uno sporco
-  // sull'obiettivo, ed e' la prima cosa che si notava del gioco. Un palo stretto
-  // e ben scuro dice "sono vicinissimo" molto meglio di una nuvola grigia,
-  // perche' e' la **nitidezza del bordo** a raccontare la distanza, non la massa.
-  const posti = [0.22, 0.71];
-  for (const posto of posti) {
-    const x = posto * canvas.width;
-    const spessore = canvas.width * (0.004 + rng() * 0.003);
-    const opacita = 0.42 + rng() * 0.14;
-
-    for (const scarto of [0, -canvas.width]) {
-      const cx = x + scarto;
-      // il fusto si assottiglia salendo, come un fusto vero visto da sotto
-      ctx.beginPath();
-      ctx.moveTo(cx - spessore * 0.6, canvas.height * 1.1);
-      ctx.lineTo(cx + spessore * 1.6, canvas.height * 1.1);
-      ctx.lineTo(cx + spessore * 1.0, -canvas.height * 0.1);
-      ctx.lineTo(cx - spessore * 0.2, -canvas.height * 0.1);
-      ctx.closePath();
-
-      const fusto = ctx.createLinearGradient(cx - spessore, 0, cx + spessore * 1.6, 0);
-      fusto.addColorStop(0, `rgba(20,24,32,${opacita * 0.55})`);
-      fusto.addColorStop(0.45, `rgba(28,34,44,${opacita})`);
-      fusto.addColorStop(1, `rgba(14,18,24,${opacita * 0.5})`);
-      ctx.fillStyle = fusto;
-      ctx.fill();
-    }
-  }
-
-  return canvas;
-}
+// --- primo piano --------------------------------------------------------------
 
 /** Il primo piano vicinissimo: rami e foglie che sfiorano l'obiettivo dall'alto.
  *  Non si devono riconoscere: e' una macchia scura fuori fuoco, e il suo lavoro

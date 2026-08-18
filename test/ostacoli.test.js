@@ -5,13 +5,18 @@ import {
   creaMonopattino,
   creaPonticello,
   creaArco,
+  creaTram,
+  spintaPerAvvicinamento,
+  VELOCITA_MONOPATTINO,
+  VELOCITA_TRAM,
+  META_BINARI,
   prendeIlCorridore,
   corsieOstacolo,
   lasciaUnaCorsiaLibera,
   sovrapposto,
   profiloBuca,
 } from '../src/ostacoli.js';
-import { CORSIE } from '../src/costanti.js';
+import { CORSIE, VELOCITA_INIZIALE } from '../src/costanti.js';
 import { creaCorridore, salta, scivola, avanzaCorridore } from '../src/corridore.js';
 
 function inVolo(corsia = 1) {
@@ -164,4 +169,57 @@ test('a meta cambio di corsia si viene presi da tutte e due le corsie', () => {
   corridore.posizione = 1.5;
   assert(prendeIlCorridore(creaMonopattino(0, 1), corridore, 0), 'quella che si sta lasciando');
   assert(prendeIlCorridore(creaMonopattino(0, 2), corridore, 0), 'quella in cui si sta entrando');
+});
+
+// --- il tram ----------------------------------------------------------------
+
+test('il tram prende due corsie e ne lascia sempre una', () => {
+  for (const inizio of [0, 1]) {
+    const tram = creaTram(200, inizio);
+    assertUguale(corsieOstacolo(tram).length, 2, 'un tram deve coprire due corsie');
+    assert(lasciaUnaCorsiaLibera(tram), 'senza una corsia libera il tram sarebbe un muro');
+  }
+});
+
+test('il tram prende chi resta nelle sue corsie, e non chi si sposta', () => {
+  const tram = creaTram(100, 0); // corsie 0 e 1
+  const dentro = creaCorridore(1);
+  const fuori = creaCorridore(2);
+
+  assert(prendeIlCorridore(tram, dentro, 0), 'nella sua corsia il tram deve prendere');
+  assert(!prendeIlCorridore(tram, fuori, 0), 'nella corsia libera non deve prendere');
+  // e non lo si scavalca: e' alto quattro metri
+  const inAria = creaCorridore(1);
+  inAria.inAria = true;
+  inAria.y = 1.3;
+  assert(prendeIlCorridore(tram, inAria, 0), 'un tram non si salta');
+});
+
+test('il tram e lungo, e il suo ingombro si sente prima e dopo', () => {
+  const tram = creaTram(100, 0);
+  // il muso arriva addosso ben prima che il centro sia alla nostra altezza
+  assert(sovrapposto(tram, 8), 'a otto metri dal centro il tram e ancora addosso');
+  assert(!sovrapposto(tram, 14), 'a quattordici metri e passato');
+});
+
+test('chi viene incontro piu veloce nasce piu lontano', () => {
+  // La spinta compensa il terreno che l'ostacolo si mangia venendo verso di noi:
+  // se non crescesse con la sua velocita', il tram arriverebbe addosso con meno
+  // preavviso del monopattino, che e' il contrario di quel che serve.
+  const perMonopattino = spintaPerAvvicinamento(20, VELOCITA_MONOPATTINO);
+  const perTram = spintaPerAvvicinamento(20, VELOCITA_TRAM);
+  assert(perTram > perMonopattino, `tram ${perTram} deve superare monopattino ${perMonopattino}`);
+});
+
+test('i binari coprono tutto il viaggio del tram', () => {
+  // Il tram nasce spostato in avanti dalla spinta, ma i binari sono dipinti
+  // attorno al punto d'incontro: se la spinta uscisse dal tratto di binari, si
+  // vedrebbe un tram correre sull'asfalto nudo.
+  const tram = creaTram(300, 0);
+  const spinta = spintaPerAvvicinamento(VELOCITA_INIZIALE, VELOCITA_TRAM);
+  const nascita = tram.z + spinta;
+  assert(
+    nascita + tram.profondita / 2 < tram.binariCentro + META_BINARI,
+    'il tram nasce oltre la fine dei binari',
+  );
 });

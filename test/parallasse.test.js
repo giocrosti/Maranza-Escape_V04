@@ -7,7 +7,7 @@ import { luciNelRiquadro } from '../src/scena/luci.js';
    posto la profondita' non si legge un po' meno, si legge al contrario. */
 
 test('i fattori di parallasse crescono dal fondo al primo piano', () => {
-  const ordine = ['cielo', 'lontano', 'medio', 'vicino', 'vicinissimo'];
+  const ordine = ['cielo', 'lontano', 'medio', 'vicinissimo'];
   for (let i = 1; i < ordine.length; i += 1) {
     const dietro = PARALLASSE[ordine[i - 1]];
     const davanti = PARALLASSE[ordine[i]];
@@ -22,7 +22,7 @@ test('il piano di gioco sta in mezzo alla scala', () => {
   // I piani in prospettiva valgono 1: i fondali devono stare sotto, i primi
   // piani sopra. E' quello che rende il numero leggibile come una distanza.
   assert(PARALLASSE.medio < 1, 'un fondale non puo correre quanto il piano di gioco');
-  assert(PARALLASSE.vicino > 1, 'un primo piano deve correre di piu del piano di gioco');
+  assert(PARALLASSE.vicinissimo > 1, 'un primo piano deve correre di piu del piano di gioco');
 });
 
 test('le luci si convertono in coordinate del riquadro che le riceve', () => {

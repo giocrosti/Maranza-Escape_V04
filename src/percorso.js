@@ -23,6 +23,7 @@ import {
   creaMonopattino,
   creaPonticello,
   creaArco,
+  creaTram,
   corsieOstacolo,
   spintaPerAvvicinamento,
 } from './ostacoli.js';
@@ -114,7 +115,10 @@ function aggiungiPezzo(percorso, velocita, rng) {
   // Chi ci verra' incontro nasce piu' avanti, di quel tanto che si mangera'
   // avvicinandosi: cosi' lo si incontra con lo stesso preavviso di un ostacolo
   // fermo, e la distanza garantita fra un ostacolo e l'altro resta vera.
-  const spinta = gruppo.some((o) => o.velocitaVerso) ? spintaPerAvvicinamento(velocita) : 0;
+  // Ogni cosa che viene incontro si mangia terreno a modo suo: il tram va piu'
+  // del monopattino, quindi la spinta si calcola sulla piu' veloce del gruppo.
+  const incontro = Math.max(0, ...gruppo.map((o) => o.velocitaVerso || 0));
+  const spinta = incontro > 0 ? spintaPerAvvicinamento(velocita, incontro) : 0;
   for (const ostacolo of gruppo) ostacolo.z += spinta;
 
   percorso.ostacoli.push(...gruppo);
@@ -126,7 +130,10 @@ function aggiungiPezzo(percorso, velocita, rng) {
   // cinque secondi buoni fra un ostacolo e l'altro, alla fine poco piu' di
   // uno: sotto non si scende, perche' sotto non si passerebbe.
   const respiro = velocita * (1.25 - difficolta * 0.45);
-  const base = Math.max(SPAZIO_MINIMO, respiro);
+  // Un ostacolo lungo si porta dietro la sua lunghezza: senza, il pezzo
+  // successivo nascerebbe dentro la coda di un tram.
+  const ingombro = Math.max(...gruppo.map((o) => o.profondita)) / 2;
+  const base = Math.max(SPAZIO_MINIMO, respiro) + ingombro;
   percorso.prossimoZ = z + spinta + base + (1 - difficolta) * 18 + rng() * 10;
   return percorso;
 }
@@ -162,6 +169,15 @@ export function creaOstacoli(z, rng, difficolta) {
   // L'arco arriva di rado: e' il momento in cui la strada si stringe a una
   // corsia sola, e capita ogni una decina di ostacoli.
   if (dado > 0.93) return [creaArco(z)];
+
+  // Il tram: due corsie su tre, diciannove metri, e viene incontro. E' il
+  // pezzo grosso, quindi non prima che si sia capito come si cambia corsia —
+  // arrivare secondi in un tram al terzo ostacolo non insegna niente.
+  if (dado > 0.855 && difficolta > 0.12) {
+    // Dalla corsia 0 o dalla 1: i binari entrano dal lato del tram, che e'
+    // sempre lo stesso, e da li' e' piu' corto arrivare alle prime due.
+    return [creaTram(z, rng() < 0.65 ? 0 : 1)];
+  }
 
   const quante = quanteCorsie(rng, difficolta, 0.38, 0.22);
   const inizio = Math.floor(rng() * (CORSIE - quante + 1));

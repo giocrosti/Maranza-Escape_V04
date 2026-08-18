@@ -15,8 +15,7 @@
 //   3   scena            1.00      strada, palazzi, ostacoli: in prospettiva
 //   4   personaggi       1.00      omino e maranza: illuminazione piena
 //   5   emissive         1.00      solo cio' che brilla, per il bloom
-//   6   vicino           1.85      pali e fusti che passano ai lati
-//   7   vicinissimo      2.90      fogliame appeso al bordo alto, fuori fuoco
+//   6   vicinissimo      2.90      fogliame appeso al bordo alto, fuori fuoco
 //
 // I piani 3 e 4 non hanno un fattore di parallasse perche' non ne hanno bisogno:
 // sono in prospettiva, e la parallasse gliela fa la proiezione stessa — una cosa
@@ -45,7 +44,6 @@ import {
   texturaCielo,
   texturaNuvole,
   texturaProfilo,
-  texturaPaliVicini,
   texturaFogliame,
   cuociAria,
 } from '../scena/fondali.js';
@@ -74,7 +72,6 @@ export const PARALLASSE = {
   cielo: 0.02,
   lontano: 0.16,
   medio: 0.4,
-  vicino: 1.85,
   vicinissimo: 2.9,
 };
 
@@ -120,7 +117,7 @@ export class Scena {
      *  cambia una distanza gia' accumulata farebbe saltare tutti i fondali di
      *  colpo a ogni variazione. Integrando passo per passo, la spinta agisce
      *  sulla derivata e non sulla posizione, e non si vede nessun salto. */
-    this._scorrimenti = { cielo: 0, lontano: 0, medio: 0, vicino: 0, vicinissimo: 0 };
+    this._scorrimenti = { cielo: 0, lontano: 0, medio: 0, vicinissimo: 0 };
 
     this._costruisciFondali();
     this._costruisciPianiVivi();
@@ -137,7 +134,6 @@ export class Scena {
       this.cielo.visible = false;
       this.lontano.visible = false;
       this.medio.visible = false;
-      this.vicino.visible = false;
       this.vicinissimo.visible = false;
     }
     if (!OPZIONI.aria) {
@@ -202,13 +198,6 @@ export class Scena {
         desaturazione: 0.26,
         contrasto: 0.92,
         luminosita: 0.02,
-      },
-      vicino: {
-        aria: [0.1, 0.12, 0.16, 0.14],
-        desaturazione: 0.1,
-        contrasto: 1.06,
-        luminosita: -0.06,
-        opacita: 0.8,
       },
       vicinissimo: {
         aria: [0.08, 0.1, 0.12, 0.2],
@@ -304,19 +293,20 @@ export class Scena {
     // La sfocatura dei primi piani si tiene da parte: a ogni fotogramma le si
     // allarga il solo asse orizzontale con la velocita' di corsa, ed e' quella
     // che fa sentire lo sprint.
-    this.sfocaturaVicino = new BlurFilter({ strength: 0.01, quality: 2, resolution: 0.5 });
     this.sfocaturaVicinissimo = new BlurFilter({ strength: 0.01, quality: 2, resolution: 0.4 });
 
     // Sui due primi piani il filtro di sfocatura resta, perche' e' l'unico che
     // cambia davvero da un fotogramma all'altro: si allunga con la velocita'.
     // Tinta e opacita' invece sono cotte nella texture come per gli altri.
 
-    // piano 6: pali e fusti ai lati. Contrasto pieno, sfocatura appena.
-    this.vicino = new TilingSprite({ texture: Texture.WHITE, width: 1, height: 1 });
-    this.vicino.filters = [this.sfocaturaVicino];
-    this.palco.addChild(this.vicino);
-
-    // piano 7: il fogliame appeso in alto. Non si deve riconoscere niente.
+    // piano 6: il fogliame appeso in alto. Non si deve riconoscere niente.
+    //
+    // Non c'e' piu' nessun piano di fusti verticali. Ce n'era uno, ed era un
+    // errore di concetto: un fondale che scorre non ha bordi, quindi qualunque
+    // cosa ci si metta prima o poi passa davanti alla corsia di mezzo. Un palo
+    // che attraversa l'inquadratura mentre stai schivando non aggiunge
+    // profondita', toglie leggibilita'. La profondita' la fanno gli altri
+    // piani, che stanno o in alto o all'orizzonte, cioe' dove non si gioca.
     this.vicinissimo = new TilingSprite({ texture: Texture.WHITE, width: 1, height: 1 });
     this.vicinissimo.filters = [this.sfocaturaVicinissimo];
     this.palco.addChild(this.vicinissimo);
@@ -444,14 +434,6 @@ export class Scena {
     this.bagliorLargo.height = altezza;
 
     // piano 6
-    this.vicino.texture = this._fondale(
-      'vicino',
-      cuociAria(texturaPaliVicini(doppio, altezza), this._ariaDi('vicino')),
-    );
-    this.vicino.width = larghezza;
-    this.vicino.height = altezza;
-
-    // piano 7
     const altezzaFogliame = Math.max(20, altezza * 0.24);
     this.vicinissimo.texture = this._fondale(
       'vicinissimo',
@@ -536,7 +518,6 @@ export class Scena {
     this.nuvole.tilePosition.x = -this._scorrimenti.cielo;
     this.lontano.tilePosition.x = -this._scorrimenti.lontano;
     this.medio.tilePosition.x = -this._scorrimenti.medio;
-    this.vicino.tilePosition.x = -this._scorrimenti.vicino;
     this.vicinissimo.tilePosition.x = -this._scorrimenti.vicinissimo;
   }
 
@@ -559,8 +540,6 @@ export class Scena {
     // PixiJS 8.3 e stampano un avviso a ogni fotogramma.
     // A riposo tutto nitido: la sfocatura non e' un modo di dire "sono vicino",
     // e' solo il segno che ci si sta muovendo. A fermo non deve esserci.
-    this.sfocaturaVicino.strengthX = 0.01 + strascico;
-    this.sfocaturaVicino.strengthY = 0.01;
     this.sfocaturaVicinissimo.strengthX = 0.01 + strascico * 1.4;
     this.sfocaturaVicinissimo.strengthY = 0.01;
   }
