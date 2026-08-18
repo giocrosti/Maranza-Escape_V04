@@ -65,8 +65,11 @@ export function disegnaFigura(ctx, opzioni) {
     /** Da -1 a 1: quanto sta scartando di lato. Apre il braccio da quella parte
      *  e fa svolazzare la camicia. */
     inclinazione = 0,
-    /** Vero per l'omino: la camicia di lino e' sua e di nessun altro. */
-    camicia = false,
+    /** Il colore della camicia. Se manca, la camicia non c'e' proprio: e' un
+     *  vestito, e i maranza hanno il loro. */
+    camicia = null,
+    /** Il colore dei pantaloni. Se manca, le gambe sono del colore del corpo. */
+    pantaloni = null,
   } = opzioni;
 
   ctx.save();
@@ -79,7 +82,7 @@ export function disegnaFigura(ctx, opzioni) {
   }
 
   if (posa === 'capriola') {
-    disegnaRaggomitolato(ctx, colore, luce, camicia);
+    disegnaRaggomitolato(ctx, colore, luce, camicia, pantaloni);
     ctx.restore();
     return;
   }
@@ -101,7 +104,8 @@ export function disegnaFigura(ctx, opzioni) {
   ctx.lineJoin = 'round';
 
   // 1. gambe
-  ctx.strokeStyle = colore;
+  const tinta = pantaloni || colore;
+  ctx.strokeStyle = tinta;
   ctx.lineWidth = 0.17;
   if (posa === 'salto') {
     gambaInVolo(ctx, -1, destro, anca);
@@ -115,11 +119,32 @@ export function disegnaFigura(ctx, opzioni) {
       ctx.stroke();
     }
   } else {
-    gambaDiCorsa(ctx, -1, destro, anca, colore, luce);
-    gambaDiCorsa(ctx, 1, sinistro, anca, colore, luce);
+    gambaDiCorsa(ctx, -1, destro, anca, tinta, luce);
+    gambaDiCorsa(ctx, 1, sinistro, anca, tinta, luce);
   }
 
-  // 4. torsione: il busto si gira appena, al contrario del passo. Appena: di
+  // 4. Il corpo si spezza all'anca.
+  //
+  // Cambiando corsia si inclinano **le spalle**, non tutto l'omino: i piedi
+  // restano piantati sull'asfalto e a piegarsi e' il busto, come fa chiunque
+  // scarti di lato correndo. Ruotando la figura intera — che e' come era fatto
+  // prima — le gambe partivano di traverso e sembrava che stesse cadendo, non
+  // che stesse cambiando corsia.
+  //
+  // Il perno e' l'anca, quindi si trasla li', si ruota, e si torna indietro:
+  // tutto quello che viene disegnato dopo (braccia, busto, testa) segue, le
+  // gambe sono gia' disegnate e restano dritte.
+  if (inclinazione) {
+    ctx.translate(0, anca);
+    // Segno negativo: `conFigura` specchia l'asse y per disegnare le figure
+    // con l'altezza che cresce verso l'alto, e uno specchio inverte il verso
+    // delle rotazioni. Un angolo positivo qui farebbe pendere le spalle dalla
+    // parte opposta a quella in cui si sta andando.
+    ctx.rotate(-inclinazione * Math.PI * 0.25);
+    ctx.translate(0, -anca);
+  }
+
+  // torsione: il busto si gira appena, al contrario del passo. Appena: di
   // piu' e sembra che stia per cadere di lato invece di correre.
   if (corsa) ctx.rotate(destro * 0.02);
 
@@ -150,7 +175,7 @@ export function disegnaFigura(ctx, opzioni) {
   riquadroTondo(ctx, -0.25, spalla - 0.12, 0.5, 0.16, 0.07);
   ctx.fill();
 
-  if (camicia) disegnaCamicia(ctx, spalla, anca, colore, luce, fase, corsa, inclinazione);
+  if (camicia) disegnaCamicia(ctx, spalla, anca, camicia, fase, corsa, inclinazione);
 
   // la banda rifrangente sulla schiena, per chi la divisa ce l'ha
   if (banda) {
@@ -262,10 +287,13 @@ function braccio(ctx, segno, p, spalla, anca, colore, coltello, apertura = 0) {
   // bilanciare uno scarto di lato, e va **oltre** la bracciata normale, non al
   // suo posto — se sostituisse il passo, il cambio di corsia sembrerebbe una
   // posa e non un movimento.
-  const manoX = segno * (0.3 + indietro * 0.16 - avanti * 0.08 + apertura * 0.42);
-  const manoY = anca + 0.14 + indietro * 0.2 - avanti * 0.08 + apertura * 0.62;
-  const gomitoX = segno * (0.32 + indietro * 0.08 + apertura * 0.24);
-  const gomitoY = (spalla + manoY) / 2 + 0.04 + apertura * 0.12;
+  // L'apertura si somma **sopra** il busto gia' inclinato di quarantacinque
+  // gradi: quello che qui sembra poco, li' e' tanto. Alla prima taratura il
+  // braccio finiva fuori dall'inquadratura.
+  const manoX = segno * (0.3 + indietro * 0.16 - avanti * 0.08 + apertura * 0.26);
+  const manoY = anca + 0.14 + indietro * 0.2 - avanti * 0.08 + apertura * 0.3;
+  const gomitoX = segno * (0.32 + indietro * 0.08 + apertura * 0.16);
+  const gomitoY = (spalla + manoY) / 2 + 0.04 + apertura * 0.06;
 
   ctx.strokeStyle = colore;
   ctx.beginPath();
@@ -305,12 +333,12 @@ function braccio(ctx, segno, p, spalla, anca, colore, coltello, apertura = 0) {
  *  il corpo, e se andasse a tempo sembrerebbe attaccata. Da qui lo sfasamento
  *  di mezzo passo sul seno che muove l'orlo.
  */
-function disegnaCamicia(ctx, spalla, anca, colore, luce, fase, corsa, inclinazione) {
+function disegnaCamicia(ctx, spalla, anca, tinta, fase, corsa, inclinazione) {
   const sventola = corsa ? Math.sin(fase - 0.9) : 0;
   const orlo = anca + 0.1;
 
-  // il corpo della camicia, appena piu' caldo del bianco del corpo
-  ctx.fillStyle = luce;
+  // il corpo della camicia
+  ctx.fillStyle = tinta;
   ctx.beginPath();
   ctx.moveTo(-0.26, spalla - 0.02);
   ctx.lineTo(0.26, spalla - 0.02);
@@ -336,7 +364,7 @@ function disegnaCamicia(ctx, spalla, anca, colore, luce, fase, corsa, inclinazio
   // spostamento anche quando l'omino e' fermo in mezzo al fotogramma.
   const coda = sventola * 0.16 - inclinazione * 0.3;
   if (Math.abs(coda) > 0.03) {
-    ctx.fillStyle = luce;
+    ctx.fillStyle = tinta;
     ctx.beginPath();
     ctx.moveTo(Math.sign(coda) * 0.24, orlo + 0.04);
     ctx.quadraticCurveTo(
@@ -351,7 +379,7 @@ function disegnaCamicia(ctx, spalla, anca, colore, luce, fase, corsa, inclinazio
   }
 
   // la piega centrale e il colletto: due righe, e la camicia si legge
-  ctx.strokeStyle = colore;
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
   ctx.lineWidth = 0.022;
   ctx.beginPath();
   ctx.moveTo(0.015, spalla - 0.04);
@@ -363,41 +391,64 @@ function disegnaCamicia(ctx, spalla, anca, colore, luce, fase, corsa, inclinazio
   ctx.stroke();
 }
 
-/** Raggomitolato: la posa della capriola. Non e' l'omino accosciato girato —
- *  e' una palla, con le ginocchia al petto e le braccia strette attorno, e
- *  serve perche' ruotando di 360 gradi qualunque cosa con le gambe distese
- *  sembra un incidente invece di una capriola. */
-function disegnaRaggomitolato(ctx, colore, luce, camicia) {
+/** Raggomitolato: la posa della capriola.
+ *
+ *  Non e' una palla liscia. Una palla liscia che gira si legge come una palla
+ *  che gira, e basta — non si capisce che dentro c'e' qualcuno. Servono le tre
+ *  cose che fanno un corpo raccolto: **la testa infilata fra le ginocchia**, le
+ *  **gambe piegate** con i piedi che spuntano, e le **braccia che stringono gli
+ *  stinchi**. Sono anche quelle a far vedere il verso in cui gira: senza
+ *  dettagli, una rotazione non ha direzione.
+ *
+ *  Il disegno guarda in avanti — verso il fondo dello schermo — perche' e' li'
+ *  che sta andando.
+ */
+function disegnaRaggomitolato(ctx, colore, luce, camicia, pantaloni) {
+  const tinta = pantaloni || colore;
   ctx.save();
   ctx.translate(0, 0.42);
 
-  ctx.fillStyle = colore;
+  // la schiena: l'arco della camicia, che e' la parte piu' larga del gomitolo
+  ctx.fillStyle = camicia || colore;
   ctx.beginPath();
-  ctx.arc(0, 0, 0.42, 0, Math.PI * 2);
+  ctx.ellipse(-0.02, 0.04, 0.4, 0.36, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // la schiena piu' chiara, che gira con lui e fa vedere che sta ruotando
-  ctx.fillStyle = luce;
-  ctx.beginPath();
-  ctx.arc(-0.1, 0.12, 0.26, 0, Math.PI * 2);
-  ctx.fill();
-
-  if (camicia) {
-    ctx.strokeStyle = luce;
-    ctx.lineWidth = 0.05;
-    ctx.beginPath();
-    ctx.arc(0, 0, 0.3, 0.4, 2.6);
-    ctx.stroke();
-  }
-
-  // le gambe raccolte
-  ctx.strokeStyle = colore;
+  // le gambe piegate, in primo piano
+  ctx.strokeStyle = tinta;
   ctx.lineCap = 'round';
-  ctx.lineWidth = 0.16;
+  ctx.lineWidth = 0.17;
   for (const segno of [-1, 1]) {
     ctx.beginPath();
-    ctx.moveTo(segno * 0.14, -0.1);
-    ctx.quadraticCurveTo(segno * 0.42, -0.02, segno * 0.3, 0.24);
+    ctx.moveTo(segno * 0.06, -0.12);
+    ctx.quadraticCurveTo(segno * 0.36, -0.16, segno * 0.34, 0.14);
+    ctx.stroke();
+  }
+  // i piedi
+  ctx.fillStyle = luce;
+  for (const segno of [-1, 1]) {
+    ctx.beginPath();
+    ctx.ellipse(segno * 0.34, 0.2, 0.1, 0.07, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // la testa, infilata in mezzo alle ginocchia
+  ctx.fillStyle = colore;
+  ctx.beginPath();
+  ctx.arc(0.06, -0.2, 0.17, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = luce;
+  ctx.beginPath();
+  ctx.arc(0.02, -0.24, 0.08, 0, Math.PI * 2);
+  ctx.fill();
+
+  // le braccia che stringono gli stinchi: sono l'ultimo strato, davanti a tutto
+  ctx.strokeStyle = colore;
+  ctx.lineWidth = 0.115;
+  for (const segno of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(segno * 0.12, -0.06);
+    ctx.quadraticCurveTo(segno * 0.34, 0.02, segno * 0.28, 0.14);
     ctx.stroke();
   }
 

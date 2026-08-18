@@ -111,9 +111,6 @@ export const CITTA = creaCitta();
  *  Non si taglia prima, o i lampioni sparirebbero mentre li stai superando. */
 const CODA_ARREDI = -DISTANZA_CAMERA + 1.1;
 
-/** Quanto si piega l'omino facendo il passo laterale. */
-const QUARANTACINQUE_GRADI = Math.PI / 4;
-
 const COLORI = {
   // cielo e foschia non stanno piu' qui: sono strisce di `scena/fondali.js`
   asfalto: '#4b4e54',
@@ -150,6 +147,11 @@ const COLORI = {
   tramLegno: '#5b3f2a',
   omino: '#f5f7fa',
   ominoOmbra: '#c2c9d3',
+  // La camicia di lino e i pantaloni: sono gli unici due colori che l'omino ha
+  // addosso, e servono a due cose insieme — dargli un carattere, e spezzare in
+  // tre fasce una silhouette che prima era una macchia bianca sola.
+  camicia: '#4f7bbf',
+  pantaloni: '#d9cbab',
   maranza: '#24262c',
   maranzaLuce: '#474c56',
   borsello: '#8a8f98',
@@ -1535,15 +1537,17 @@ function disegnaCorridore(ctx, mondo) {
     // La capriola: un giro intero in avanti, attorno al centro della palla e
     // non ai piedi — ruotando attorno ai piedi rotolerebbe fuori dallo schermo
     // invece di rotolare su se' stesso.
+    // La capriola gira **in avanti**: in coordinate schermo, con la y che
+    // cresce verso il basso, e' la rotazione antioraria. Con quella oraria
+    // rotolava all'indietro, che e' un'altra cosa e si vedeva subito.
+    //
+    // Il piegamento del passo laterale non e' qui: sta dentro la figura, perche'
+    // riguarda solo le spalle. Ruotare tutto l'omino faceva partire di traverso
+    // anche le gambe, e sembrava che cadesse invece che scartare.
     if (posa === 'capriola') {
       ctx.translate(0, 0.42);
-      ctx.rotate(capriola * Math.PI * 2);
+      ctx.rotate(-capriola * Math.PI * 2);
       ctx.translate(0, -0.42);
-    } else if (corridore.inclinazione) {
-      // Il passo laterale: il busto si piega di quarantacinque gradi verso dove
-      // si sta andando, col perno ai piedi. E' molto — ma un cambio di corsia
-      // dura un sesto di secondo, e sotto i quaranta gradi non si vedrebbe.
-      ctx.rotate(corridore.inclinazione * QUARANTACINQUE_GRADI);
     }
 
     if (inMacchina) {
@@ -1566,7 +1570,8 @@ function disegnaCorridore(ctx, mondo) {
       fase: corridore.fase,
       posa,
       inclinazione: corridore.inclinazione,
-      camicia: true,
+      camicia: conMadonnina ? '#e8c86a' : COLORI.camicia,
+      pantaloni: conMadonnina ? '#d9b95c' : COLORI.pantaloni,
     });
   });
   ctx.globalAlpha = 1;
@@ -1623,6 +1628,10 @@ function disegnaPoliziotto(ctx, vista, corridore, tempo) {
       posa: 'corsa',
       cappello: COLORI.poliziaBerretto,
       banda: COLORI.poliziaBanda,
+      // Corre a fianco e cambia corsia con lui: se restasse dritto mentre
+      // l'omino si piega, si vedrebbe che sono due disegni diversi invece di
+      // due che scappano insieme.
+      inclinazione: corridore.inclinazione,
     });
   });
 

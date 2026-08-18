@@ -142,6 +142,25 @@ che si mangera' avvicinandosi (`spintaPerAvvicinamento`), e la spinta si calcola
 sulla **sua** velocita': il tram va piu' del monopattino, e senza questo
 arriverebbe addosso con meno preavviso.
 
+### L'omino
+
+**Il corpo si spezza all'anca.** Cambiando corsia si inclinano le *spalle* di
+quarantacinque gradi, non tutto l'omino: i piedi restano piantati sull'asfalto.
+Ruotando la figura intera — com'era la prima versione — le gambe partivano di
+traverso e sembrava che stesse cadendo, non che stesse scartando. Il perno e'
+l'anca, e le gambe sono gia' disegnate quando la rotazione entra in gioco.
+
+**Attenzione al verso delle rotazioni dentro `conFigura`.** Quella funzione
+specchia l'asse y (`ctx.scale(scala, -scala)`) per far crescere l'altezza verso
+l'alto, e uno specchio inverte il senso di ogni rotazione: un angolo positivo
+piega dalla parte opposta a quella che ci si aspetta. Vale per l'inclinazione
+del passo laterale e per la capriola, ed entrambe sono state sbagliate una
+volta.
+
+**Chi corre insieme all'omino si piega insieme a lui.** Il poliziotto dello
+scudo riceve la stessa `inclinazione`: se restasse dritto mentre l'altro scarta,
+si vedrebbe che sono due disegni diversi invece di due che scappano insieme.
+
 ### La telecamera
 
 Non e' inchiodata al centro: **insegue l'omino di lato, in ritardo**

@@ -67,6 +67,7 @@ const SCENE = {
   /* Il passo laterale: si mette il bersaglio a due corsie di distanza e si
      fotografa mentre e' a meta' strada. */
   scarto: { stato: 'in-gioco', scorrimento: 44, distanza: 44, velocita: 18, scarto: 1 },
+  scartoSinistra: { stato: 'in-gioco', scorrimento: 44, distanza: 44, velocita: 18, scarto: -1 },
   capriola: { stato: 'in-gioco', scorrimento: 44, distanza: 44, velocita: 18, capriola: 0.35 },
   portale: { stato: 'in-gioco', scorrimento: 90, distanza: 90, velocita: 18,
     ostacoli: [{ tipo: 'portale', avanti: 9 }] },
