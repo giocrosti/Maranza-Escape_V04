@@ -59,8 +59,10 @@ const PROFONDITA_ARCO = 4;
  *  tanta: passargli accanto dura, e deve durare. */
 const PROFONDITA_TRAM = 19;
 
-/** Quante corsie prende. Due su tre: ne resta sempre una, ma una sola. */
-const CORSIE_TRAM = 2;
+/** Quante corsie prende: **una**. E' un tram, non un muro — e uno solo lascia
+ *  spazio per metterne due o tre sfalsati e farci passare in mezzo, che e' dove
+ *  il tram diventa un momento di gioco invece di un ostacolo qualsiasi. */
+const CORSIE_TRAM = 1;
 
 /** La sua velocita' verso di noi. Piu' del monopattino, meno di quanto
  *  sembrera': la somma con la corsa fa gia' abbastanza paura. */
@@ -69,12 +71,12 @@ export const VELOCITA_TRAM = 9;
 /** Quanto e' lungo, in metri, il tratto di binari sulla carreggiata — meta' per
  *  parte rispetto al punto d'incontro. Deve bastare a coprire tutto il viaggio
  *  del tram, o lo si vedrebbe correre sull'asfalto nudo. */
-export const META_BINARI = 50;
+export const META_BINARI = 34;
 
 /** In quanti metri i binari passano dal lato della strada alla carreggiata.
  *  E' la curva che si vede arrivare, ed e' l'avviso: da qui in avanti quella
  *  corsia non e' piu' tua. */
-export const INGRESSO_BINARI = 22;
+export const INGRESSO_BINARI = 16;
 
 /** Le corsie chiuse dai piloni dell'Arco della Pace: la centrale resta
  *  libera, ed e' l'unico modo di passare. */
@@ -152,12 +154,12 @@ export function creaAiuola(z, corsiaInizio, quanteCorsie) {
  *  centro dei binari e' il punto dove il tram e il giocatore si incontreranno,
  *  cioe' la z di generazione **prima** della spinta che compensa
  *  l'avvicinamento. */
-export function creaTram(z, corsiaInizio) {
+export function creaTram(z, corsia) {
   return {
     tipo: TRAM,
     z,
     profondita: PROFONDITA_TRAM,
-    corsiaInizio,
+    corsiaInizio: corsia,
     quanteCorsie: CORSIE_TRAM,
     colpito: false,
     velocitaVerso: VELOCITA_TRAM,
@@ -225,6 +227,19 @@ export function creaArco(z) {
     quanteCorsie: CORSIE_ARCO.length,
     colpito: false,
   };
+}
+
+/** Quanto un ostacolo continua a esistere dopo essere stato superato, oltre la
+ *  propria lunghezza.
+ *
+ *  Per quasi tutti e' zero: passato l'ostacolo, non c'e' piu' niente da
+ *  disegnare. Il tram fa eccezione perche' non e' solo il tram: sono anche i
+ *  binari dipinti sull'asfalto, che restano sotto i piedi per decine di metri
+ *  dopo che la vettura e' passata. Buttarlo via appena la cassa e' alle spalle
+ *  faceva sparire i binari da sotto il giocatore mentre ci stava ancora
+ *  correndo sopra. */
+export function scia(ostacolo) {
+  return ostacolo.tipo === TRAM ? META_BINARI : 0;
 }
 
 /** Le corsie coperte dall'ostacolo, in ordine.

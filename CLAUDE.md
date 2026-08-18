@@ -106,7 +106,13 @@ funziona anche quando l'ostacolo prende tutta la strada:
 | ponticello | ci si abbassa | |
 | monopattino | si cambia corsia | viene incontro |
 | arco | corsia centrale | i piloni chiudono le altre due |
-| tram | si cambia corsia | due corsie su tre, 19 metri, viene incontro |
+| tram | si cambia corsia | una corsia, 19 metri, viene incontro |
+
+Il tram e' l'ostacolo piu' frequente della strada (`QUOTA_TRAM`), e viene da
+solo, in due o in tre. Il terzetto e' sempre **sfalsato**, mai affiancato: lo
+sfalsamento sta in una finestra stretta — sotto i 9,5 metri due tram chiudono
+due corsie mentre il terzo chiude l'ultima, sopra i 22 si passa stando fermi in
+una corsia. In mezzo c'e' lo slalom.
 
 Il tram ha una regola sua: **i binari sono l'avviso**. Non stanno attaccati al
 tram, stanno dipinti sull'asfalto attorno al punto d'incontro (`binariCentro`,
@@ -115,10 +121,32 @@ ai due capi curvano fuori verso la sede laterale. La curva d'ingresso va messa
 dove il giocatore **passa**, non dove il tratto finisce: al capo lontano
 cadrebbe oltre la distanza visibile e non la vedrebbe mai nessuno.
 
+Un tram superato non si butta via subito: `scia()` dice quanto ancora deve
+vivere, perche' i binari restano sotto i piedi molto dopo che la vettura e'
+passata.
+
 Un ostacolo che viene incontro nasce piu' lontano di uno fermo, di quel tanto
 che si mangera' avvicinandosi (`spintaPerAvvicinamento`), e la spinta si calcola
 sulla **sua** velocita': il tram va piu' del monopattino, e senza questo
 arriverebbe addosso con meno preavviso.
+
+### Quello che sparisce troppo presto
+
+Un intero gruppo di difetti, tutti con la stessa faccia: una cosa svanisce
+mentre la si sta ancora guardando. Vale la pena riconoscerli, perche' si
+ripresentano ogni volta che si aggiunge roba lunga.
+
+- **La citta' si ripete**, e `zRelativo` riporta dentro il periodo quello che va
+  oltre la coda — che di default e' quattordici metri. Un palazzo profondo
+  ventidue (Velasca, Duomo) veniva rispedito a settecento metri di distanza
+  mentre lo si costeggiava. La coda va **misurata sull'oggetto**.
+- **I ritagli di sicurezza vanno messi dove la proiezione esplode**, non dove fa
+  comodo. L'arco si tagliava a `-3` e la sua facciata spariva a `+0,4`: ma la
+  telecamera sta a `-4,5`, quindi c'era ancora mezzo arco davanti all'obiettivo.
+- **Una soglia che nasconde un dettaglio nasconde troppo.** Le ruote delle auto
+  si spegnevano tutte insieme a tre metri per non diventare dischi giganti: si
+  vedeva l'auto scivolare via appoggiata sul niente. Meglio un **tetto al
+  raggio** e un taglio per singola ruota.
 
 ## Il feedback di gioco
 

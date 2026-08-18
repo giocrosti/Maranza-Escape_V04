@@ -39,32 +39,28 @@ const SCENE = {
      un istante isolato — la polvere ha bisogno di qualche passo per alzarsi, la
      tensione ha bisogno che gli inseguitori si avvicinino davvero. */
   polvere: { stato: 'in-gioco', scorrimento: 300, distanza: 300, velocita: 26, attesa: 1400 },
-  /* Il tram non si aspetta che esca da solo: si mette dov'e' utile vederlo.
-     E' un ostacolo raro, e aspettare che il generatore lo tiri fuori vorrebbe
-     dire scattare a caso. */
-  tram: {
-    stato: 'in-gioco',
-    scorrimento: 160,
-    distanza: 160,
-    velocita: 18,
-    tram: { avanti: 30, corsiaInizio: 0 },
-  },
-  tramVicino: {
-    stato: 'in-gioco',
-    scorrimento: 160,
-    distanza: 160,
-    velocita: 18,
-    tram: { avanti: 13, corsiaInizio: 0 },
-  },
-  /* Qui il tram e' ancora lontano: quel che si guarda e' la curva con cui i
-     binari lasciano il lato ed entrano in carreggiata, che e' l'avviso. */
-  binari: {
-    stato: 'in-gioco',
-    scorrimento: 160,
-    distanza: 160,
-    velocita: 18,
-    tram: { avanti: 62, corsiaInizio: 0 },
-  },
+  /* Gli ostacoli rari non si aspettano: si mettono dove servono. Aspettare che
+     il generatore tiri fuori un terzetto di tram vorrebbe dire scattare a caso. */
+  tram: { stato: 'in-gioco', scorrimento: 160, distanza: 160, velocita: 18,
+    ostacoli: [{ tipo: 'tram', avanti: 26, corsia: 1 }] },
+  tramTre: { stato: 'in-gioco', scorrimento: 160, distanza: 160, velocita: 18,
+    ostacoli: [
+      { tipo: 'tram', avanti: 16, corsia: 0 },
+      { tipo: 'tram', avanti: 37, corsia: 2 },
+      { tipo: 'tram', avanti: 58, corsia: 1 },
+    ] },
+  binari: { stato: 'in-gioco', scorrimento: 160, distanza: 160, velocita: 18,
+    ostacoli: [{ tipo: 'tram', avanti: 46, corsia: 0 }] },
+  arco: { stato: 'in-gioco', scorrimento: 210, distanza: 210, velocita: 18,
+    ostacoli: [{ tipo: 'arco', avanti: 2.5 }] },
+  monopattini: { stato: 'in-gioco', scorrimento: 90, distanza: 90, velocita: 18,
+    ostacoli: [
+      { tipo: 'monopattino', avanti: 11, corsia: 0 },
+      { tipo: 'monopattino', avanti: 24, corsia: 2 },
+    ] },
+  /* La Velasca sta a z=470 ed e' profonda 22: qui la si e' appena superata, ed
+     e' il punto in cui prima spariva di colpo. */
+  velasca: { stato: 'in-gioco', scorrimento: 486, distanza: 486, velocita: 18 },
   minaccia: {
     stato: 'in-gioco',
     scorrimento: 430,
@@ -192,21 +188,31 @@ async function principale() {
         m.corridore.inAria = true;
       }
       if (p.distacco !== undefined) m.inseguitori.distacco = p.distacco;
-      if (p.tram) {
+      if (p.ostacoli) {
         // Si sgombera prima: le pose si scattano di fila sulla stessa pagina, e
-        // senza questo il tram della posa precedente resta in scena.
+        // senza questo gli ostacoli della posa precedente restano in scena.
         m.percorso.ostacoli = [];
-        const z = m.distanza + p.tram.avanti;
-        m.percorso.ostacoli.push({
-          tipo: 'tram',
-          z,
-          profondita: 19,
-          corsiaInizio: p.tram.corsiaInizio,
-          quanteCorsie: 2,
-          colpito: false,
-          velocitaVerso: 0, // fermo: uno scatto deve essere ripetibile
-          binariCentro: z,
-        });
+        for (const voce of p.ostacoli) {
+          const z = m.distanza + voce.avanti;
+          if (voce.tipo === 'arco') {
+            m.percorso.ostacoli.push({
+              tipo: 'arco', z, profondita: 4,
+              corsie: [0, 2], corsiaInizio: 0, quanteCorsie: 2, colpito: false,
+            });
+            continue;
+          }
+          m.percorso.ostacoli.push({
+            tipo: voce.tipo,
+            z,
+            profondita: voce.tipo === 'tram' ? 19 : 1.4,
+            corsiaInizio: voce.corsia,
+            quanteCorsie: 1,
+            colpito: false,
+            velocitaVerso: 0, // fermi: uno scatto deve essere ripetibile
+            binariCentro: z,
+            sbandata: 0.3,
+          });
+        }
       }
       // due fotogrammi: uno per far girare il mondo, uno per disegnarlo
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));

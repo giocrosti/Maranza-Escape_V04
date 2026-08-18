@@ -12,6 +12,11 @@ import {
   SPRITZ,
 } from '../src/percorso.js';
 import {
+  META_BINARI,
+  creaTram,
+  sovrapposto,
+  ARCO,
+  TRAM,
   BUCA,
   MONOPATTINO,
   corsieOstacolo,
@@ -60,15 +65,62 @@ test('i primi metri sono liberi: c e il tempo di capire che si sta correndo', ()
   assert(primo.z >= PRIMO_OSTACOLO, `il primo ostacolo arriva a ${primo.z.toFixed(1)} m`);
 });
 
-test('due ostacoli non si sovrappongono mai, con nessun seme', () => {
+test('due ostacoli nella stessa corsia non si accavallano mai', () => {
+  /* La distanza minima serve a una cosa sola: atterrare da un salto e non
+     trovarsi dentro l'ostacolo successivo. Vale quindi **corsia per corsia** —
+     due cose vicine ma su corsie diverse non si ostacolano a vicenda, ed e'
+     esattamente il caso dei tram sfalsati, che sono vicini apposta. */
   for (const seme of [1, 7, 42, 1234, 99999]) {
-    const elenco = gruppi(percorsoLungo(3000, seme));
-    assert(elenco.length > 40, `solo ${elenco.length} ostacoli: il test non sta guardando niente`);
-    for (let i = 1; i < elenco.length; i += 1) {
-      const spazio = elenco[i].z - elenco[i - 1].z;
+    const percorso = percorsoLungo(3000, seme);
+    assert(
+      percorso.ostacoli.length > 40,
+      `solo ${percorso.ostacoli.length} ostacoli: il test non sta guardando niente`,
+    );
+
+    for (let corsia = 0; corsia < CORSIE; corsia += 1) {
+      const suQuestaCorsia = percorso.ostacoli
+        .filter((o) => corsieOstacolo(o).includes(corsia))
+        .sort((a, b) => a.z - b.z);
+
+      for (let i = 1; i < suQuestaCorsia.length; i += 1) {
+        const spazio = suQuestaCorsia[i].z - suQuestaCorsia[i - 1].z;
+        assert(
+          spazio >= SPAZIO_MINIMO,
+          `seme ${seme}, corsia ${corsia}: due ostacoli a ${spazio.toFixed(1)} m, ` +
+            `meno del minimo ${SPAZIO_MINIMO}`,
+        );
+      }
+    }
+  }
+});
+
+test('c e sempre una corsia libera, metro per metro', () => {
+  /* L'invariante che conta davvero, e l'unica che copre anche i tram sfalsati:
+     in ogni punto della strada, fra le cose che si passano **solo cambiando
+     corsia** (monopattino, tram, piloni dell'arco) ne deve restare almeno una
+     libera. Buche e ponticelli non entrano nel conto: quelli si saltano o ci si
+     abbassa, e possono chiudere tutta la strada senza che sia ingiusto.
+
+     Si guarda metro per metro e non gruppo per gruppo: un terzetto di tram
+     sfalsati e' fatto apposta di ostacoli che si accavallano a coppie, e
+     guardando il gruppo intero sembrerebbe un muro mentre invece ci si passa. */
+  const SOLO_DI_LATO = [MONOPATTINO, TRAM, ARCO];
+
+  for (const seme of [3, 11, 77, 4242]) {
+    const percorso = percorsoLungo(3000, seme);
+    const bloccanti = percorso.ostacoli.filter((o) => SOLO_DI_LATO.includes(o.tipo));
+    assert(bloccanti.length > 20, `solo ${bloccanti.length} ostacoli da schivare di lato`);
+
+    const fine = Math.max(...bloccanti.map((o) => o.z)) + 30;
+    for (let z = 0; z < fine; z += 1) {
+      const chiuse = new Set();
+      for (const ostacolo of bloccanti) {
+        if (!sovrapposto(ostacolo, ostacolo.z - z)) continue;
+        for (const corsia of corsieOstacolo(ostacolo)) chiuse.add(corsia);
+      }
       assert(
-        spazio >= SPAZIO_MINIMO,
-        `seme ${seme}: due ostacoli a ${spazio.toFixed(1)} m, meno del minimo ${SPAZIO_MINIMO}`,
+        chiuse.size < CORSIE,
+        `seme ${seme}: a ${z} m tutte e ${CORSIE} le corsie sono chiuse, non si passa`,
       );
     }
   }
@@ -103,15 +155,57 @@ test('ogni buca si puo saltare, anche alla velocita massima', () => {
   }
 });
 
-test('due monopattini insieme lasciano sempre una corsia libera', () => {
-  let coppie = 0;
+test('in gruppo vanno solo monopattini e tram', () => {
+  // Sono i due che si passano cambiando corsia, e quindi gli unici che ha senso
+  // mettere in piu' di uno: due buche affiancate sarebbero solo una buca larga.
+  let gruppetti = 0;
   for (const { gruppo } of gruppi(percorsoLungo(4000))) {
     if (gruppo.length < 2) continue;
-    assert(gruppo.every((o) => o.tipo === MONOPATTINO), 'solo i monopattini vanno in coppia');
+    gruppetti += 1;
+    assert(
+      gruppo.every((o) => o.tipo === MONOPATTINO || o.tipo === TRAM),
+      `in gruppo c e un ${gruppo.map((o) => o.tipo).join(' + ')}`,
+    );
+  }
+  assert(gruppetti > 0, 'in quattro chilometri un gruppo deve pur uscire');
+});
+
+test('due monopattini affiancati lasciano una corsia libera', () => {
+  let coppie = 0;
+  for (const { gruppo } of gruppi(percorsoLungo(4000))) {
+    if (gruppo.length < 2 || gruppo.some((o) => o.tipo !== MONOPATTINO)) continue;
     coppie += 1;
     assert(corsieLibere(gruppo).length >= 1, 'una coppia che chiude la strada e imbattibile');
   }
   assert(coppie > 0, 'in quattro chilometri una coppia di monopattini deve pur uscire');
+});
+
+test('mai tre tram affiancati', () => {
+  // Tre tram alla stessa z sono la fine della partita, e non devono esistere:
+  // il terzetto e' sempre sfalsato.
+  for (const { gruppo } of gruppi(percorsoLungo(6000))) {
+    const tram = gruppo.filter((o) => o.tipo === TRAM);
+    if (tram.length < 3) continue;
+    const zeta = tram.map((o) => o.z).sort((a, b) => a - b);
+    for (let i = 1; i < zeta.length; i += 1) {
+      assert(zeta[i] - zeta[i - 1] > 9.5, `due tram di un terzetto a ${zeta[i] - zeta[i - 1]} m`);
+    }
+  }
+});
+
+test('un tram superato resta finche i suoi binari sono sotto i piedi', () => {
+  /* Il tram non e' solo il tram: sono anche i binari dipinti sull'asfalto, che
+     restano per decine di metri dopo che la vettura e' passata. Buttandolo via
+     appena la cassa e' alle spalle, i binari sparivano da sotto il giocatore
+     mentre ci stava ancora correndo sopra. */
+  const percorso = creaPercorso(rngFinto(1));
+  percorso.ostacoli = [creaTram(500, 1)];
+
+  ripulisci(percorso, 515); // cassa passata da un pezzo, binari ancora sotto
+  assertUguale(percorso.ostacoli.length, 1, 'il tram e sparito coi binari ancora in strada');
+
+  ripulisci(percorso, 500 + META_BINARI + 40); // adesso e' passato tutto
+  assertUguale(percorso.ostacoli.length, 0, 'il tram non se ne va piu');
 });
 
 test('la strada e generata fin dove si vede', () => {

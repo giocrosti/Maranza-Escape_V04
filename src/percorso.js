@@ -24,6 +24,7 @@ import {
   creaPonticello,
   creaArco,
   creaTram,
+  scia,
   corsieOstacolo,
   spintaPerAvvicinamento,
 } from './ostacoli.js';
@@ -101,7 +102,9 @@ export function generaAvanti(percorso, distanza, velocita, rng) {
 /** Butta via ostacoli e monete ormai alle spalle. */
 export function ripulisci(percorso, distanza) {
   const limite = distanza - CODA;
-  percorso.ostacoli = percorso.ostacoli.filter((o) => o.z + o.profondita / 2 > limite);
+  percorso.ostacoli = percorso.ostacoli.filter(
+    (o) => o.z + o.profondita / 2 + scia(o) > limite,
+  );
   percorso.raccolte = percorso.raccolte.filter((r) => r.z > limite && !r.presa);
   return percorso;
 }
@@ -129,12 +132,14 @@ function aggiungiPezzo(percorso, velocita, rng) {
   // va avanti, ed e' il modo in cui il gioco stringe. All'inizio passano
   // cinque secondi buoni fra un ostacolo e l'altro, alla fine poco piu' di
   // uno: sotto non si scende, perche' sotto non si passerebbe.
+  //
+  // Si misura dalla **fine** del gruppo, non dalla sua z: un terzetto di tram
+  // sfalsati e' lungo cinquanta metri, e contare dal primo farebbe nascere il
+  // pezzo successivo dentro l'ultimo.
   const respiro = velocita * (1.25 - difficolta * 0.45);
-  // Un ostacolo lungo si porta dietro la sua lunghezza: senza, il pezzo
-  // successivo nascerebbe dentro la coda di un tram.
-  const ingombro = Math.max(...gruppo.map((o) => o.profondita)) / 2;
-  const base = Math.max(SPAZIO_MINIMO, respiro) + ingombro;
-  percorso.prossimoZ = z + spinta + base + (1 - difficolta) * 18 + rng() * 10;
+  const fine = Math.max(...gruppo.map((o) => o.z + o.profondita / 2));
+  const base = Math.max(SPAZIO_MINIMO, respiro);
+  percorso.prossimoZ = fine + base + (1 - difficolta) * 18 + rng() * 10;
   return percorso;
 }
 
@@ -142,6 +147,12 @@ function aggiungiPezzo(percorso, velocita, rng) {
  *  Ritorna sempre un elenco, anche di uno solo. */
 export function creaOstacoli(z, rng, difficolta) {
   const dado = rng();
+
+  // Il tram e' l'ostacolo piu' frequente della strada: e' una via di Milano, e
+  // su una via di Milano il tram passa in continuazione. Non prima che si sia
+  // capito come si cambia corsia, pero' — arrivare secondi in un tram al terzo
+  // ostacolo non insegna niente.
+  if (dado < QUOTA_TRAM && difficolta > 0.12) return creaGruppoTram(z, rng, difficolta);
 
   if (dado < 0.3) {
     const quante = quanteCorsie(rng, difficolta, 0.26, 0.1);
@@ -170,18 +181,63 @@ export function creaOstacoli(z, rng, difficolta) {
   // corsia sola, e capita ogni una decina di ostacoli.
   if (dado > 0.93) return [creaArco(z)];
 
-  // Il tram: due corsie su tre, diciannove metri, e viene incontro. E' il
-  // pezzo grosso, quindi non prima che si sia capito come si cambia corsia —
-  // arrivare secondi in un tram al terzo ostacolo non insegna niente.
-  if (dado > 0.855 && difficolta > 0.12) {
-    // Dalla corsia 0 o dalla 1: i binari entrano dal lato del tram, che e'
-    // sempre lo stesso, e da li' e' piu' corto arrivare alle prime due.
-    return [creaTram(z, rng() < 0.65 ? 0 : 1)];
-  }
+
 
   const quante = quanteCorsie(rng, difficolta, 0.38, 0.22);
   const inizio = Math.floor(rng() * (CORSIE - quante + 1));
   return [creaPonticello(z, inizio, quante)];
+}
+
+/** Quanta parte degli ostacoli sono tram. Una manopola sola: alzarla riempie
+ *  la strada di tram, abbassarla li rende un avvenimento. */
+const QUOTA_TRAM = 0.45;
+
+/** Di quanto sono sfalsati due tram consecutivi di un gruppo, in metri.
+ *
+ *  E' il numero che decide se un terzetto e' uno slalom o una condanna. Sotto i
+ *  9,5 metri — meta' della lunghezza di un tram — il primo e il terzo si
+ *  sovrappongono e chiudono due corsie mentre il secondo chiude la terza:
+ *  muro. Sopra i 22 non si sovrappone piu' niente e si passa stando fermi in
+ *  una corsia, che e' l'altro modo di non essere un momento di gioco. In mezzo
+ *  c'e' la finestra dove ne passa uno per volta ma senza respiro, e si e'
+ *  costretti a muoversi. */
+function sfalsamento(rng, difficolta) {
+  return 22 - difficolta * 4 - rng() * 1.5;
+}
+
+/** Le tre corsie in ordine sparso, senza ripetizioni. */
+function corsieMescolate(rng) {
+  const corsie = [];
+  for (let c = 0; c < CORSIE; c += 1) corsie.push(c);
+  for (let i = corsie.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(rng() * (i + 1));
+    [corsie[i], corsie[j]] = [corsie[j], corsie[i]];
+  }
+  return corsie;
+}
+
+/** Uno, due o tre tram. Il terzetto arriva solo a gioco caldo. */
+function creaGruppoTram(z, rng, difficolta) {
+  const corsie = corsieMescolate(rng);
+  const dado = rng();
+
+  if (dado < 0.5 || difficolta < 0.25) return [creaTram(z, corsie[0])];
+
+  if (dado < 0.84 || difficolta < 0.55) {
+    // Due: affiancati lasciano una corsia sola e sono una scelta secca,
+    // sfalsati sono due scelte di fila.
+    const scarto = rng() < 0.45 ? 0 : sfalsamento(rng, difficolta);
+    return [creaTram(z, corsie[0]), creaTram(z + scarto, corsie[1])];
+  }
+
+  // Tre, sempre sfalsati: uno per corsia, e si passa in mezzo cambiando due
+  // volte. Non esistono tre tram affiancati, sarebbe la fine della partita.
+  const passo = sfalsamento(rng, difficolta);
+  return [
+    creaTram(z, corsie[0]),
+    creaTram(z + passo, corsie[1]),
+    creaTram(z + passo * 2, corsie[2]),
+  ];
 }
 
 /** Da una a tre corsie, con la larghezza che cresce insieme alla difficolta'. */

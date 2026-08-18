@@ -876,54 +876,90 @@ export function disegnaMonopattinoDiLato(ctx, { tinta = '#3f4a52', accento = '#6
  *  ruota sola di taglio, la pedana in larghezza, il manubrio largo e il faro
  *  acceso — ed e' il faro a dire, da lontano, che quello ti sta venendo
  *  incontro invece di scappare come te. */
-export function disegnaMonopattinoDiFronte(ctx, { tinta = '#3f4a52', accento = '#6fd18a' } = {}) {
-  ctx.fillStyle = '#17191d';
-  riquadroTondo(ctx, -0.055, 0.01, 0.11, 0.26, 0.05);
-  ctx.fill();
+/** Il monopattino visto di faccia, in due parti.
+ *
+ *  Due parti perche' il manubrio sta all'altezza delle mani di chi guida, e
+ *  disegnandolo tutto prima del maranza spariva dietro di lui: restava un
+ *  puntino di faro e un'ombra scura, e non si capiva su cosa fosse. Adesso la
+ *  pedana e la ruota si disegnano sotto, il manubrio **sopra** il guidatore.
+ *
+ *  E' anche il motivo per cui i tubi sono chiari e non della tinta scura di
+ *  prima: il maranza e' nero, e un telaio scuro su un guidatore nero non si
+ *  vede a nessuna distanza. Un monopattino che non si riconosce non e' un
+ *  ostacolo, e' una sorpresa.
+ */
+export function disegnaMonopattinoDiFronte(
+  ctx,
+  { tinta = '#aab4c0', accento = '#6fd18a', parte = 'tutto' } = {},
+) {
+  if (parte !== 'sopra') {
+    // ruota anteriore, di taglio
+    ctx.fillStyle = '#17191d';
+    riquadroTondo(ctx, -0.06, 0.01, 0.12, 0.3, 0.055);
+    ctx.fill();
 
-  // parafango anteriore
-  ctx.fillStyle = tinta;
-  riquadroTondo(ctx, -0.085, 0.24, 0.17, 0.07, 0.03);
-  ctx.fill();
+    // parafango
+    ctx.fillStyle = tinta;
+    riquadroTondo(ctx, -0.1, 0.27, 0.2, 0.08, 0.035);
+    ctx.fill();
 
-  ctx.fillStyle = tinta;
-  riquadroTondo(ctx, -0.14, 0.1, 0.28, 0.055, 0.02);
-  ctx.fill();
-  ctx.fillStyle = accento;
-  ctx.fillRect(-0.12, 0.145, 0.24, 0.014);
+    // Pedana larga: deve sporgere **oltre le scarpe** del guidatore, o e' come
+    // non averla disegnata. E' la stessa ragione per cui il manubrio e' piu'
+    // largo delle sue spalle — di faccia, di un monopattino si vede solo quello
+    // che esce dalla sagoma di chi ci sta sopra.
+    ctx.fillStyle = tinta;
+    riquadroTondo(ctx, -0.26, 0.08, 0.52, 0.075, 0.03);
+    ctx.fill();
+    ctx.fillStyle = accento;
+    ctx.fillRect(-0.24, 0.145, 0.48, 0.022);
 
+    // il piantone
+    ctx.strokeStyle = tinta;
+    ctx.lineWidth = 0.075;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(0, 0.16);
+    ctx.lineTo(-0.015, 1.0);
+    ctx.stroke();
+  }
+
+  if (parte === 'sotto') return;
+
+  // Il manubrio, sopra a tutto: largo, chiaro, con le manopole scure alle
+  // estremita'. E' la sagoma orizzontale che fa riconoscere il mezzo da lontano.
   ctx.strokeStyle = tinta;
-  ctx.lineWidth = 0.055;
+  ctx.lineWidth = 0.075;
   ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.moveTo(0, 0.15);
-  ctx.lineTo(-0.015, 1.0);
+  // un filo di curva verso l'alto: dritto sembrava un bastone di traverso
+  ctx.moveTo(-0.46, 1.06);
+  ctx.quadraticCurveTo(0, 0.99, 0.46, 1.06);
   ctx.stroke();
 
-  ctx.lineWidth = 0.045;
-  ctx.beginPath();
-  ctx.moveTo(-0.27, 1.03);
-  ctx.lineTo(0.24, 1.03);
-  ctx.stroke();
+  // le manopole, scure e grosse: sono i due punti che chiudono la sagoma
   ctx.fillStyle = '#1d2024';
   for (const segno of [-1, 1]) {
-    riquadroTondo(ctx, segno * 0.24 - 0.045, 0.99, 0.09, 0.08, 0.03);
+    riquadroTondo(ctx, segno * 0.44 - 0.06, 1.0, 0.12, 0.12, 0.045);
     ctx.fill();
   }
 
-  // il faro, acceso: e' quello che dice che sta venendo verso di te
-  ctx.fillStyle = '#f6efd0';
+  // Il faro, acceso. E' la cosa che si vede per prima e da piu' lontano: un
+  // punto chiaro su un guidatore nero si legge a trenta metri, quando della
+  // forma del mezzo non si distingue ancora niente.
+  ctx.fillStyle = 'rgba(246,239,208,0.22)';
   ctx.beginPath();
-  ctx.ellipse(0, 0.93, 0.075, 0.06, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 0.9, 0.3, 0.24, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = 'rgba(246,239,208,0.3)';
+  ctx.fillStyle = 'rgba(250,243,214,0.55)';
   ctx.beginPath();
-  ctx.ellipse(0, 0.93, 0.15, 0.12, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 0.9, 0.17, 0.14, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#fdf7e2';
+  ctx.beginPath();
+  ctx.ellipse(0, 0.9, 0.095, 0.08, 0, 0, Math.PI * 2);
   ctx.fill();
 }
 
-/** Il maranza in sella, visto di faccia: piedi sulla pedana, braccia tese al
- *  manubrio e lo stesso sguardo storto degli altri. */
 export function disegnaMaranzaInSella(ctx, opzioni) {
   const { colore = '#24262c', luce = '#474c56', cappello = CAPPELLI[0], borsello = '#8a8f98', base = 0 } =
     opzioni;

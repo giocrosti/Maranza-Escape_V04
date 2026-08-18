@@ -421,7 +421,12 @@ function disegnaCitta(ctx, vista, scorrimento) {
   const aggiungi = (z, disegna) => cose.push({ z, disegna });
 
   for (const edificio of CITTA.edifici) {
-    const z = zRelativo(edificio.z, scorrimento);
+    // La coda va misurata sull'edificio, non lasciata al valore di default.
+    // `zRelativo` riporta dentro il periodo quello che e' andato oltre: con una
+    // coda di quattordici metri, un palazzo profondo ventidue — la Velasca, il
+    // Duomo — veniva rispedito a settecento metri di distanza mentre lo si
+    // stava ancora costeggiando, e spariva di colpo.
+    const z = zRelativo(edificio.z, scorrimento, 20 + edificio.profondita);
     if (z > DISTANZA_VISIBILE || z + edificio.profondita < CODA_ARREDI) continue;
     palazzi.push({ z, disegna: () => disegnaEdificio(ctx, vista, edificio, z) });
   }
@@ -455,7 +460,8 @@ function disegnaCitta(ctx, vista, scorrimento) {
     aggiungi(z, () => disegnaAuto(ctx, vista, auto, z));
   }
   for (const tram of CITTA.tram) {
-    const z = zRelativo(tram.z, scorrimento);
+    // stessa storia dei palazzi: un tram e' lungo diciannove metri
+    const z = zRelativo(tram.z, scorrimento, 40);
     if (z > 120 || z < CODA_ARREDI - 20) continue;
     aggiungi(z, () => disegnaTram(ctx, vista, z));
   }
@@ -710,14 +716,22 @@ function disegnaAuto(ctx, vista, auto, z) {
     parete(ctx, vista, dentro - LATO_SOSTA * 0.02, yVetro[0], yVetro[1], zVicino + 0.8, zLontano - 0.9);
   }
 
-  // Ruote. Non si disegnano sull'auto che si sta superando: a mezzo metro
-  // dall'obiettivo diventano due dischi neri grandi come lo schermo.
-  if (zVicino < 3) return;
+  // Ruote. Si tolgono **una alla volta**, quando quella ruota e' passata
+  // davvero, e non tutte insieme appena l'auto si avvicina: prima si spegnevano
+  // a tre metri, cioe' mentre la fiancata era ancora bella grande in mezzo allo
+  // schermo, e si vedeva un'auto scivolare via appoggiata sul niente.
+  //
+  // Il raggio ha un tetto perche' resta vero il motivo per cui c'era la soglia:
+  // a mezzo metro dall'obiettivo una ruota diventa un disco nero grande come lo
+  // schermo. Un tetto risolve quello senza far sparire nient'altro.
   ctx.fillStyle = '#1e2024';
+  const raggioMassimo = vista.altezza * 0.09;
   for (const zRuota of [zVicino + 0.95, zLontano - 0.95]) {
+    if (!davantiAllaCamera(zRuota)) continue;
     const p = proietta(vista, dentro, 0.3, zRuota);
+    const raggio = Math.min(0.29 * p.scala, raggioMassimo);
     ctx.beginPath();
-    ctx.ellipse(p.x, p.y, 0.29 * p.scala, 0.29 * p.scala, 0, 0, Math.PI * 2);
+    ctx.ellipse(p.x, p.y, raggio, raggio, 0, 0, Math.PI * 2);
     ctx.fill();
   }
 }
@@ -834,8 +848,10 @@ function disegnaTram(ctx, vista, z, opzioni = {}) {
       ctx.fillStyle = '#f2ead0';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
+      // La 1: la linea storica di Milano, quella dei 1500 in servizio da
+      // novant'anni. E' il numero che rende il tram *quel* tram.
       ctx.font = `700 ${0.42 * pLinea.scala}px system-ui, -apple-system, sans-serif`;
-      ctx.fillText('19', pLinea.x, pLinea.y);
+      ctx.fillText('1', pLinea.x, pLinea.y);
     }
 
     // fanali: rossi se e' la coda, chiari se e' il muso che ci viene addosso
@@ -912,7 +928,7 @@ function disegnaPercorso(ctx, mondo) {
  *  giocatore raggiunge per ultimo: cadeva oltre la distanza visibile e non la
  *  vedeva mai nessuno. Va messa dove si passa, non dove finisce. */
 function mezzeriaBinari(tram, z) {
-  const dentro = bordoSinistroDiCorsia(tram.corsiaInizio) + LARGHEZZA_CORSIA;
+  const dentro = xDiCorsia(tram.corsiaInizio);
   const daLato = LATO_TRAM * (BORDO_STRADA + 1.4);
   const scarto = Math.abs(z - tram.binariCentro);
   const dirittura = META_BINARI - INGRESSO_BINARI;
@@ -977,11 +993,14 @@ function disegnaBinariSullaStrada(ctx, vista, tram, distanza) {
 function disegnaOstacolo(ctx, vista, ostacolo, z, mondo) {
   if (ostacolo.tipo === BUCA) return disegnaBuca(ctx, vista, ostacolo, z);
   if (ostacolo.tipo === TRAM) {
-    // La cassa e' larga quanto le due corsie che l'urto gli riconosce. Un tram
+    // La cassa e' larga quanto la corsia che l'urto gli riconosce. Un tram
     // disegnato stretto e che prende largo sarebbe una fregatura: quello che si
     // vede deve essere quello che ti prende.
-    const centro = bordoSinistroDiCorsia(ostacolo.corsiaInizio) + LARGHEZZA_CORSIA;
-    return disegnaTram(ctx, vista, z, { centro, semi: 1.85, frontale: true });
+    return disegnaTram(ctx, vista, z, {
+      centro: xDiCorsia(ostacolo.corsiaInizio),
+      semi: LARGHEZZA_CORSIA / 2 - 0.05,
+      frontale: true,
+    });
   }
   if (ostacolo.tipo === AIUOLA) return disegnaAiuola(ctx, vista, ostacolo, z);
   if (ostacolo.tipo === MONOPATTINO) return disegnaMonopattinoConMaranza(ctx, vista, ostacolo, z, mondo);
@@ -1222,7 +1241,8 @@ function disegnaMonopattinoConMaranza(ctx, vista, ostacolo, z, mondo) {
     ctx.rotate(sbanda);
     // Viene verso di noi, quindi lo si vede di faccia: faro acceso e non
     // catarifrangente, e il maranza che ti guarda mentre arriva.
-    disegnaMonopattinoDiFronte(ctx, { accento: ostacolo.sbandata > 0.5 ? '#6fd18a' : '#e8b23c' });
+    const accento = ostacolo.sbandata > 0.5 ? '#6fd18a' : '#e8b23c';
+    disegnaMonopattinoDiFronte(ctx, { accento, parte: 'sotto' });
     disegnaMaranzaInSella(ctx, {
       colore: COLORI.maranza,
       luce: COLORI.maranzaLuce,
@@ -1230,6 +1250,9 @@ function disegnaMonopattinoConMaranza(ctx, vista, ostacolo, z, mondo) {
       cappello: CAPPELLI[Math.floor(ostacolo.sbandata * 4) % CAPPELLI.length],
       borsello: COLORI.borsello,
     });
+    // manubrio e faro dopo il guidatore: sono davanti a lui, e sono le due cose
+    // che fanno riconoscere un monopattino a trenta metri
+    disegnaMonopattinoDiFronte(ctx, { accento, parte: 'sopra' });
   });
 }
 

@@ -19,6 +19,7 @@
 // partite e di ostacoli.
 
 import { pianoFacciata, poligonoFacciata, rettangoloFacciata, sagoma, parete } from './pennello.js';
+import { DISTANZA_CAMERA, DISTANZA_MINIMA } from './proiezione.js';
 
 export const MARMO = '#e4dbcb';
 const MARMO_OMBRA = '#cfc4b0';
@@ -407,16 +408,25 @@ export function disegnaArco(ctx, vista, z, altezza, semiLarghezza, semiVarco) {
   const versoU = (x) => 0.5 + x / (2 * semiLarghezza);
   const larghezzaVarco = semiVarco / semiLarghezza / 2;
 
+  // Fin dove si puo' disegnare senza che la proiezione esploda. Non e' zero:
+  // la telecamera sta quattro metri e mezzo dietro l'omino, quindi c'e' ancora
+  // parecchio arco davanti all'obiettivo quando l'omino l'ha gia' passato.
+  //
+  // Prima i fianchi si tagliavano a -3 e la facciata spariva a +0,4: passandoci
+  // sotto, i piloni ai lati si spegnevano un istante prima che li si superasse,
+  // ed e' il momento in cui li si sta guardando.
+  const CODA_ARCO = -DISTANZA_CAMERA + DISTANZA_MINIMA + 0.1;
+
   // i due piloni, in volume: fianco interno e testa
   for (const lato of [-1, 1]) {
     ctx.fillStyle = MARMO_OMBRA;
-    parete(ctx, vista, lato * semiVarco, 0, h * 0.68, Math.max(zTesta, -3), zFondo);
+    parete(ctx, vista, lato * semiVarco, 0, h * 0.68, Math.max(zTesta, CODA_ARCO), zFondo);
   }
   // il cielo dell'arcata
   ctx.fillStyle = MARMO_SCURO;
-  parete(ctx, vista, 0, h * 0.6, h * 0.68, Math.max(zTesta, -3), zFondo);
+  parete(ctx, vista, 0, h * 0.6, h * 0.68, Math.max(zTesta, CODA_ARCO), zFondo);
 
-  if (zTesta <= 0.4) return;
+  if (zTesta <= CODA_ARCO) return;
 
   const punto = pianoFacciata(vista, zTesta, -semiLarghezza, semiLarghezza, 0, h);
 

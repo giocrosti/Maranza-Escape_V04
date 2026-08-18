@@ -173,21 +173,21 @@ test('a meta cambio di corsia si viene presi da tutte e due le corsie', () => {
 
 // --- il tram ----------------------------------------------------------------
 
-test('il tram prende due corsie e ne lascia sempre una', () => {
-  for (const inizio of [0, 1]) {
-    const tram = creaTram(200, inizio);
-    assertUguale(corsieOstacolo(tram).length, 2, 'un tram deve coprire due corsie');
-    assert(lasciaUnaCorsiaLibera(tram), 'senza una corsia libera il tram sarebbe un muro');
+test('il tram prende una corsia sola', () => {
+  for (const corsia of [0, 1, 2]) {
+    const tram = creaTram(200, corsia);
+    assertUguale(corsieOstacolo(tram).length, 1, 'un tram occupa la sua corsia e basta');
+    assertUguale(corsieOstacolo(tram)[0], corsia, 'e deve essere quella giusta');
+    assert(lasciaUnaCorsiaLibera(tram), 'da solo lascia due corsie libere');
   }
 });
 
-test('il tram prende chi resta nelle sue corsie, e non chi si sposta', () => {
-  const tram = creaTram(100, 0); // corsie 0 e 1
-  const dentro = creaCorridore(1);
-  const fuori = creaCorridore(2);
+test('il tram prende chi resta nella sua corsia, e non chi si sposta', () => {
+  const tram = creaTram(100, 1);
+  assert(prendeIlCorridore(tram, creaCorridore(1), 0), 'nella sua corsia il tram deve prendere');
+  assert(!prendeIlCorridore(tram, creaCorridore(0), 0), 'nella corsia accanto non deve prendere');
+  assert(!prendeIlCorridore(tram, creaCorridore(2), 0), 'nemmeno nell altra');
 
-  assert(prendeIlCorridore(tram, dentro, 0), 'nella sua corsia il tram deve prendere');
-  assert(!prendeIlCorridore(tram, fuori, 0), 'nella corsia libera non deve prendere');
   // e non lo si scavalca: e' alto quattro metri
   const inAria = creaCorridore(1);
   inAria.inAria = true;
