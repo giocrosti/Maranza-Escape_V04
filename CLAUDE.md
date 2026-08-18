@@ -144,10 +144,23 @@ Tre regole imparate misurando, non ragionando:
 2. **Le chiamate di disegno non erano il collo di bottiglia.** Passare da 50 a
    30 ha spostato gli fps di un punto: il costo sta nei pixel dei filtri, non
    nelle chiamate. Prima di ottimizzare, misurare quale delle due.
-3. **La qualita' scende da sola** (`grafica/qualita.js`). Non si puo' sapere in
-   anticipo se un telefono ce la fa; si guarda il p95 del tempo per fotogramma e
-   si scende di risoluzione. Si scende e basta, non si risale: un sistema che
-   oscilla fra due qualita' e' peggio di uno lento.
+3. **La qualita' si adatta da sola** (`grafica/qualita.js`), ma con prudenza.
+   Non si puo' sapere in anticipo se un telefono ce la fa; si guarda il p95 del
+   tempo per fotogramma e si scende di risoluzione. La prima versione scendeva
+   al primo brutto quarto di secondo e non risaliva mai: bastava un inciampo
+   all'avvio e il gioco restava sgranato per tutta la sessione, il che poi si
+   racconta come "si vede tutto sfocato". Adesso i primi tre secondi non si
+   giudicano, per scendere servono tre giudizi negativi di fila, e si puo'
+   risalire con un'isteresi larga.
+
+4. **La sfocatura non e' profondita'.** La profondita' di campo sulla scena e'
+   spenta (`sfocatura: 0`) ed e' una scelta, non una dimenticanza: in un gioco
+   di corsa si guarda lontano per vedere cosa arriva, e sfocare il lontano vuol
+   dire sfocare l'informazione che serve. Su uno schermo tenuto a trenta
+   centimetri tre pixel di sfocatura non si leggono come distanza, si leggono
+   come "e' fuori fuoco". La distanza la raccontano contrasto e colore, che
+   restano. L'unica sfocatura viva e' lo strascico orizzontale dei due piani
+   vicini quando si corre forte, e a fermo vale zero.
 
 ## Alpha premoltiplicata
 

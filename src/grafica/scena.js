@@ -89,7 +89,7 @@ const SPINTA_PARALLASSE = 0.85;
 /** Quanti pixel di sfocatura orizzontale prendono i piani vicini a tutta
  *  velocita'. Solo orizzontale: e' la direzione in cui si muovono, e sfocare
  *  anche in verticale farebbe solo una macchia. */
-const SFOCATURA_MOTO = 9;
+const SFOCATURA_MOTO = 4;
 
 export class Scena {
   constructor(app) {
@@ -190,21 +190,18 @@ export class Scena {
         desaturazione: 0.14,
         contrasto: 0.95,
         luminosita: 0.02,
-        sfocatura: 3,
       },
       lontano: {
-        aria: [0.85, 0.9, 0.94, 0.32],
-        desaturazione: 0.48,
-        contrasto: 0.84,
-        luminosita: 0.05,
-        sfocatura: 2.5,
+        aria: [0.85, 0.9, 0.94, 0.24],
+        desaturazione: 0.38,
+        contrasto: 0.88,
+        luminosita: 0.04,
       },
       medio: {
-        aria: [0.83, 0.88, 0.93, 0.22],
-        desaturazione: 0.34,
-        contrasto: 0.88,
-        luminosita: 0.03,
-        sfocatura: 1.4,
+        aria: [0.83, 0.88, 0.93, 0.16],
+        desaturazione: 0.26,
+        contrasto: 0.92,
+        luminosita: 0.02,
       },
       vicino: {
         aria: [0.1, 0.12, 0.16, 0.14],
@@ -236,15 +233,22 @@ export class Scena {
       rim: [0.55, -0.5, 2.4, 0.0],
       rilievo: { vicino: 2, lontano: 5, forza: 0.9 },
     });
-    // Tarato guardando gli scatti, non a tavolino. La prima versione (aria 0.48,
-    // desaturazione 0.4) cancellava il Duomo: un monumento deve arrivare come un
-    // momento, e se la foschia se lo mangia il momento non c'e'.
+    // **Niente sfocatura sulla scena.** La profondita' di campo e' bella in un
+    // fermo immagine e sbagliata qui: in un gioco di corsa si guarda lontano per
+    // vedere cosa arriva, e sfocare il lontano vuol dire sfocare esattamente
+    // l'informazione che serve. In piu' su uno schermo di telefono, tenuto a
+    // trenta centimetri, una sfocatura di tre pixel non si legge come
+    // profondita': si legge come "e' fuori fuoco".
+    //
+    // Della prospettiva aerea resta un velo, che e' la parte che funziona: la
+    // distanza si racconta togliendo **contrasto e colore**, non nitidezza.
+    // Rimetterla e' cambiare `sfocatura` da 0 a 3.
     this.filtroProfondita = creaFiltroProfondita({
-      aria: [0.82, 0.87, 0.92, 0.24],
+      aria: [0.82, 0.87, 0.92, 0.14],
       fuoco: 0.42,
-      sfocatura: 3,
+      sfocatura: 0,
       potenza: 1.8,
-      tono: { desaturazione: 0.2, contrasto: 0.95, luminosita: 0.03 },
+      tono: { desaturazione: 0.12, contrasto: 0.97, luminosita: 0.02 },
     });
     this.telaScena.sprite.filters = [this.filtroLuceScena, this.filtroProfondita];
     this.palco.addChild(this.telaScena.sprite);
@@ -300,8 +304,8 @@ export class Scena {
     // La sfocatura dei primi piani si tiene da parte: a ogni fotogramma le si
     // allarga il solo asse orizzontale con la velocita' di corsa, ed e' quella
     // che fa sentire lo sprint.
-    this.sfocaturaVicino = new BlurFilter({ strength: 2, quality: 2, resolution: 0.5 });
-    this.sfocaturaVicinissimo = new BlurFilter({ strength: 5, quality: 2, resolution: 0.4 });
+    this.sfocaturaVicino = new BlurFilter({ strength: 0.01, quality: 2, resolution: 0.5 });
+    this.sfocaturaVicinissimo = new BlurFilter({ strength: 0.01, quality: 2, resolution: 0.4 });
 
     // Sui due primi piani il filtro di sfocatura resta, perche' e' l'unico che
     // cambia davvero da un fotogramma all'altro: si allunga con la velocita'.
@@ -553,10 +557,12 @@ export class Scena {
     const strascico = corsa * corsa * SFOCATURA_MOTO;
     // `strengthX`/`strengthY`, non `blurX`/`blurY`: quelli sono deprecati da
     // PixiJS 8.3 e stampano un avviso a ogni fotogramma.
-    this.sfocaturaVicino.strengthX = 2 + strascico;
-    this.sfocaturaVicino.strengthY = 2;
-    this.sfocaturaVicinissimo.strengthX = 5 + strascico * 1.4;
-    this.sfocaturaVicinissimo.strengthY = 5;
+    // A riposo tutto nitido: la sfocatura non e' un modo di dire "sono vicino",
+    // e' solo il segno che ci si sta muovendo. A fermo non deve esserci.
+    this.sfocaturaVicino.strengthX = 0.01 + strascico;
+    this.sfocaturaVicino.strengthY = 0.01;
+    this.sfocaturaVicinissimo.strengthX = 0.01 + strascico * 1.4;
+    this.sfocaturaVicinissimo.strengthY = 0.01;
   }
 
   /** Quante particelle stanno vivendo: per il pannello di diagnostica. */

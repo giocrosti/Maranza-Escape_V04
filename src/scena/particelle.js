@@ -239,14 +239,14 @@ export function disegnaParticelle(ctx, vista, sistema) {
     // cosi' e' un difetto, non una nuvola.
     const raggio = Math.min(
       p.raggio * (1 + p.crescita * t) * punto.scala,
-      vista.altezza * 0.045,
+      vista.altezza * 0.026,
     );
     if (raggio < 0.4) continue;
 
     // svanisce sul finale, non per tutta la vita: una particella che sbiadisce
     // dal primo istante non si vede mai davvero. In piu' si spegne avvicinandosi
     // alla telecamera, cosi' non arriva mai a sbattere in faccia.
-    const vicinissima = Math.min(1, Math.max(0, (p.z + 2.6) / 1.4));
+    const vicinissima = Math.min(1, Math.max(0, (p.z + 2.6) / 2.2));
     const opacita = p.opacita * Math.min(1, (1 - t) * 2.2) * vicinissima;
     const [r, g, b] = p.colore;
     ctx.fillStyle = `rgba(${Math.round(r * 255)},${Math.round(g * 255)},${Math.round(b * 255)},${opacita})`;
