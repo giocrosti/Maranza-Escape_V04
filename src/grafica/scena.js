@@ -193,17 +193,17 @@ export class Scena {
         sfocatura: 3,
       },
       lontano: {
-        aria: [0.85, 0.9, 0.94, 0.45],
-        desaturazione: 0.6,
-        contrasto: 0.78,
-        luminosita: 0.08,
+        aria: [0.85, 0.9, 0.94, 0.32],
+        desaturazione: 0.48,
+        contrasto: 0.84,
+        luminosita: 0.05,
         sfocatura: 2.5,
       },
       medio: {
-        aria: [0.83, 0.88, 0.93, 0.34],
-        desaturazione: 0.44,
-        contrasto: 0.84,
-        luminosita: 0.05,
+        aria: [0.83, 0.88, 0.93, 0.22],
+        desaturazione: 0.34,
+        contrasto: 0.88,
+        luminosita: 0.03,
         sfocatura: 1.4,
       },
       vicino: {
@@ -211,7 +211,7 @@ export class Scena {
         desaturazione: 0.1,
         contrasto: 1.06,
         luminosita: -0.06,
-        opacita: 0.5,
+        opacita: 0.8,
       },
       vicinissimo: {
         aria: [0.08, 0.1, 0.12, 0.2],
@@ -240,11 +240,11 @@ export class Scena {
     // desaturazione 0.4) cancellava il Duomo: un monumento deve arrivare come un
     // momento, e se la foschia se lo mangia il momento non c'e'.
     this.filtroProfondita = creaFiltroProfondita({
-      aria: [0.82, 0.87, 0.92, 0.3],
+      aria: [0.82, 0.87, 0.92, 0.24],
       fuoco: 0.42,
       sfocatura: 3,
       potenza: 1.8,
-      tono: { desaturazione: 0.26, contrasto: 0.93, luminosita: 0.04 },
+      tono: { desaturazione: 0.2, contrasto: 0.95, luminosita: 0.03 },
     });
     this.telaScena.sprite.filters = [this.filtroLuceScena, this.filtroProfondita];
     this.palco.addChild(this.telaScena.sprite);
@@ -300,7 +300,7 @@ export class Scena {
     // La sfocatura dei primi piani si tiene da parte: a ogni fotogramma le si
     // allarga il solo asse orizzontale con la velocita' di corsa, ed e' quella
     // che fa sentire lo sprint.
-    this.sfocaturaVicino = new BlurFilter({ strength: 4, quality: 2, resolution: 0.5 });
+    this.sfocaturaVicino = new BlurFilter({ strength: 2, quality: 2, resolution: 0.5 });
     this.sfocaturaVicinissimo = new BlurFilter({ strength: 5, quality: 2, resolution: 0.4 });
 
     // Sui due primi piani il filtro di sfocatura resta, perche' e' l'unico che
@@ -553,8 +553,8 @@ export class Scena {
     const strascico = corsa * corsa * SFOCATURA_MOTO;
     // `strengthX`/`strengthY`, non `blurX`/`blurY`: quelli sono deprecati da
     // PixiJS 8.3 e stampano un avviso a ogni fotogramma.
-    this.sfocaturaVicino.strengthX = 4 + strascico;
-    this.sfocaturaVicino.strengthY = 4;
+    this.sfocaturaVicino.strengthX = 2 + strascico;
+    this.sfocaturaVicino.strengthY = 2;
     this.sfocaturaVicinissimo.strengthX = 5 + strascico * 1.4;
     this.sfocaturaVicinissimo.strengthY = 5;
   }

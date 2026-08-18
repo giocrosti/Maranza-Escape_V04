@@ -77,19 +77,44 @@ export function cuociAria(canvas, { aria = null, desaturazione = 0, contrasto = 
     ctx.putImageData(immagine, 0, 0);
   }
 
-  if (sfocatura > 0) {
-    // Ci si appoggia al filtro del canvas 2D, che e' accelerato dal browser.
-    // Serve una copia: sfocare una tela dentro se stessa la impasta, perche'
-    // ogni riga letta e' gia' quella scritta un attimo prima.
-    const copia = tela(canvas.width, canvas.height);
-    copia.getContext('2d').drawImage(canvas, 0, 0);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.filter = `blur(${sfocatura}px)`;
-    ctx.drawImage(copia, 0, 0);
-    ctx.filter = 'none';
-  }
+  if (sfocatura > 0) sfocaturaCircolare(canvas, sfocatura);
 
   return canvas;
+}
+
+/**
+ * Sfoca una striscia **senza rompere la giunta**.
+ *
+ * Il filtro `blur` del canvas non sa niente di strisce ripetibili: ai due bordi
+ * mescola con il vuoto che c'e' fuori dalla tela, quindi il primo e l'ultimo
+ * centimetro vengono piu' chiari degli altri. Su una texture ferma non lo
+ * noterebbe nessuno; su una che scorre in continuazione diventa **una riga
+ * verticale piu' chiara che attraversa lo schermo** a ogni giro, ed e' la prima
+ * cosa che l'occhio trova, perche' l'occhio cerca il movimento.
+ *
+ * Il rimedio e' dare al filtro il contesto che gli manca: si affianca la
+ * striscia a se stessa tre volte, si sfoca il tutto, e si tiene solo quella di
+ * mezzo — che a quel punto ha, di la' da ogni bordo, esattamente i pixel che
+ * ritrovera' una volta ripetuta.
+ */
+function sfocaturaCircolare(canvas, raggio) {
+  const larghezza = canvas.width;
+  const altezza = canvas.height;
+
+  const tripla = tela(larghezza * 3, altezza);
+  const ctxTripla = tripla.getContext('2d');
+  for (let i = 0; i < 3; i += 1) ctxTripla.drawImage(canvas, larghezza * i, 0);
+
+  // Si disegna la tripla **spostata indietro di una larghezza**, cosi' la copia
+  // di mezzo cade esattamente sulla tela. Quello che finisce fuori dai bordi
+  // non si vede ma sfoca lo stesso: e' proprio il vicinato che mancava.
+  // (Niente disegno di una tela su se stessa: con un filtro attivo il risultato
+  // si somma all'originale invece di sostituirlo.)
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, larghezza, altezza);
+  ctx.filter = `blur(${raggio}px)`;
+  ctx.drawImage(tripla, -larghezza, 0);
+  ctx.filter = 'none';
 }
 
 // --- cielo -----------------------------------------------------------------
@@ -139,11 +164,17 @@ export function texturaNuvole(larghezza, altezza) {
     }
   };
 
-  for (let i = 0; i < 14; i += 1) {
+  // Sei nuvole, non quattordici, e molto piu' pallide.
+  //
+  // Con quattordici il cielo non aveva piu' nuvole: aveva un velo bianco da un
+  // bordo all'altro, e quel velo si sommava alla foschia della prospettiva
+  // aerea fino a far sembrare annebbiata tutta l'immagine. Le nuvole devono
+  // essere qualcosa che si nota **ogni tanto**, non il colore del cielo.
+  for (let i = 0; i < 6; i += 1) {
     const x = rng() * canvas.width;
-    const y = canvas.height * (0.12 + rng() * 0.55);
-    const raggio = canvas.height * (0.18 + rng() * 0.3);
-    const opacita = 0.24 + rng() * 0.3;
+    const y = canvas.height * (0.1 + rng() * 0.5);
+    const raggio = canvas.height * (0.14 + rng() * 0.22);
+    const opacita = 0.1 + rng() * 0.14;
     // ogni nuvola e' tre bolle: una sola sembra una macchia
     disegna(x, y, raggio, opacita);
     disegna(x + raggio * 0.7, y - raggio * 0.14, raggio * 0.68, opacita * 0.9);
@@ -256,11 +287,19 @@ export function texturaPaliVicini(larghezza, altezza) {
   // metteva sei "verso i bordi", ma un fondale che scorre non ha bordi: prima o
   // poi passano tutti davanti alla corsia di mezzo, e in sei erano graffi sulla
   // lente, non alberi vicini.
+  //
+  // **Sottili e scuri, non larghi e pallidi.** La versione precedente era spessa
+  // il 2% della striscia — cinquanta pixel a schermo — e con la sfocatura sopra
+  // diventava una fascia grigia che attraversava l'inquadratura ogni pochi
+  // secondi. Non si leggeva come un albero vicino: si leggeva come uno sporco
+  // sull'obiettivo, ed e' la prima cosa che si notava del gioco. Un palo stretto
+  // e ben scuro dice "sono vicinissimo" molto meglio di una nuvola grigia,
+  // perche' e' la **nitidezza del bordo** a raccontare la distanza, non la massa.
   const posti = [0.22, 0.71];
   for (const posto of posti) {
     const x = posto * canvas.width;
-    const spessore = canvas.width * (0.01 + rng() * 0.01);
-    const opacita = 0.16 + rng() * 0.06;
+    const spessore = canvas.width * (0.004 + rng() * 0.003);
+    const opacita = 0.42 + rng() * 0.14;
 
     for (const scarto of [0, -canvas.width]) {
       const cx = x + scarto;
@@ -273,9 +312,9 @@ export function texturaPaliVicini(larghezza, altezza) {
       ctx.closePath();
 
       const fusto = ctx.createLinearGradient(cx - spessore, 0, cx + spessore * 1.6, 0);
-      fusto.addColorStop(0, `rgba(22,26,34,${opacita * 0.35})`);
-      fusto.addColorStop(0.5, `rgba(30,36,46,${opacita})`);
-      fusto.addColorStop(1, `rgba(18,22,28,${opacita * 0.35})`);
+      fusto.addColorStop(0, `rgba(20,24,32,${opacita * 0.55})`);
+      fusto.addColorStop(0.45, `rgba(28,34,44,${opacita})`);
+      fusto.addColorStop(1, `rgba(14,18,24,${opacita * 0.5})`);
       ctx.fillStyle = fusto;
       ctx.fill();
     }
