@@ -46,9 +46,17 @@ export const SEMI_PROFONDITA_OMINO = 0.35;
  *  Il tetto e' alto e ci si arriva in due minuti: prima si toccava il massimo
  *  dopo un minuto e da li' in poi la corsa non cambiava piu'. */
 export const VELOCITA_INIZIALE = 11;
-export const VELOCITA_MASSIMA = 30;
-/** Metri al secondo guadagnati per ogni secondo di corsa. */
-export const ACCELERAZIONE = 0.16;
+/** La velocita' a cui il gioco smette di accelerare. E' la manopola che decide
+ *  quanto e' duro il finale: tutto il resto — lo spazio fra gli ostacoli, il
+ *  tempo per leggere una corsia — e' calcolato a partire da qui. */
+export const VELOCITA_MASSIMA = 37.5;
+/** Metri al secondo guadagnati per ogni secondo di corsa.
+ *
+ *  Cresce insieme al tetto, e non e' un dettaglio: alzando la velocita' massima
+ *  senza toccare questa, il gioco non diventa piu' duro — diventa piu' **lungo**
+ *  da scaldare, perche' per arrivare al massimo servirebbero tre minuti invece
+ *  di due. Il ritmo dei primi due minuti deve restare quello. */
+export const ACCELERAZIONE = 0.2225;
 
 /** Quanti metri di strada si disegnano davanti all'omino. */
 export const DISTANZA_VISIBILE = 95;

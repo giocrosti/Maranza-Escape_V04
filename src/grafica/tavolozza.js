@@ -168,8 +168,8 @@ export const LATO_LUT = 16;
  */
 export function creaCanvasLut({
   forza = FORZA_PALETTE,
-  contrasto = 1.12,
-  saturazione = 1.05,
+  contrasto = 1.16,
+  saturazione = 1.28,
 } = {}) {
   const lato = LATO_LUT;
   const canvas = document.createElement('canvas');

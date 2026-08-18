@@ -61,6 +61,9 @@ const SCENE = {
   /* La Velasca sta a z=470 ed e' profonda 22: qui la si e' appena superata, ed
      e' il punto in cui prima spariva di colpo. */
   velasca: { stato: 'in-gioco', scorrimento: 486, distanza: 486, velocita: 18 },
+  /* Con l'omino di lato si vede la telecamera che lo insegue: il mondo scorre
+     e il punto di fuga si sposta. Con l'omino al centro non si vedrebbe. */
+  camera: { stato: 'in-gioco', scorrimento: 44, distanza: 44, velocita: 18, corsia: 0, attesa: 700 },
   minaccia: {
     stato: 'in-gioco',
     scorrimento: 430,
@@ -179,8 +182,10 @@ async function principale() {
       m.scorrimento = p.scorrimento;
       if (p.distanza !== undefined) m.distanza = p.distanza;
       if (p.velocita !== undefined) m.velocita = p.velocita;
-      m.corridore.posizione = 1;
-      m.corridore.bersaglio = 1;
+      const corsia = p.corsia ?? 1;
+      m.corridore.posizione = corsia;
+      m.corridore.bersaglio = corsia;
+      m.vista.guarda = 0; // la telecamera insegue: si parte da ferma
       m.corridore.fase = 2.4; // passo sempre alla stessa altezza, fra due scatti
       if (p.salto) {
         m.corridore.y = 1.15;

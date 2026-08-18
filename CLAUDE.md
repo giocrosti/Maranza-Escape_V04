@@ -106,7 +106,7 @@ funziona anche quando l'ostacolo prende tutta la strada:
 | ponticello | ci si abbassa | |
 | monopattino | si cambia corsia | viene incontro |
 | arco | corsia centrale | i piloni chiudono le altre due |
-| tram | si cambia corsia | una corsia, 19 metri, viene incontro |
+| tram | si cambia corsia | piu' stretto di una corsia, 19 metri, viene incontro |
 
 Il tram e' l'ostacolo piu' frequente della strada (`QUOTA_TRAM`), e viene da
 solo, in due o in tre. Il terzetto e' sempre **sfalsato**, mai affiancato: lo
@@ -130,6 +130,18 @@ che si mangera' avvicinandosi (`spintaPerAvvicinamento`), e la spinta si calcola
 sulla **sua** velocita': il tram va piu' del monopattino, e senza questo
 arriverebbe addosso con meno preavviso.
 
+### La telecamera
+
+Non e' inchiodata al centro: **insegue l'omino di lato, in ritardo**
+(`vista.guarda`, mosso da `mondo.js`). E' il pezzo che fa sembrare il gioco un
+gioco invece di una proiezione — con la telecamera ferma, cambiare corsia sposta
+l'omino nel riquadro e basta; inseguendolo in ritardo si sente lo scarto, il
+mondo scorre di lato e l'omino si ricentra.
+
+`guarda` entra **prima** della divisione prospettica, quindi le cose vicine
+scorrono piu' di quelle lontane: e' una parallasse vera, e non costa niente. Non
+va a 1: seguirlo del tutto cancellerebbe il movimento invece di raccontarlo.
+
 ### Quello che sparisce troppo presto
 
 Un intero gruppo di difetti, tutti con la stessa faccia: una cosa svanisce
@@ -143,6 +155,12 @@ ripresentano ogni volta che si aggiunge roba lunga.
 - **I ritagli di sicurezza vanno messi dove la proiezione esplode**, non dove fa
   comodo. L'arco si tagliava a `-3` e la sua facciata spariva a `+0,4`: ma la
   telecamera sta a `-4,5`, quindi c'era ancora mezzo arco davanti all'obiettivo.
+- **Le suddivisioni vanno ancorate al mondo, non alla finestra visibile.** I
+  binari erano una spezzata di venti segmenti ripartiti fra i due estremi
+  *visibili*: i vertici si spostavano a ogni fotogramma insieme al giocatore, e
+  nel tratto in curva l'errore di approssimazione oscillava avanti e indietro —
+  si vedeva il binario ondeggiare come una corda. Ancorati a metri interi del
+  mondo, restano dove sono.
 - **Una soglia che nasconde un dettaglio nasconde troppo.** Le ruote delle auto
   si spegnevano tutte insieme a tre metri per non diventare dischi giganti: si
   vedeva l'auto scivolare via appoggiata sul niente. Meglio un **tetto al

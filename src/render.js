@@ -750,6 +750,7 @@ function disegnaTram(ctx, vista, z, opzioni = {}) {
     centro = LATO_TRAM * (BORDO_STRADA + 1.45),
     semi = 0.9,
     frontale = false,
+    asta = true,
   } = opzioni;
   const verso = Math.sign(centro) || 1;
   const lunghezza = 19;
@@ -866,8 +867,15 @@ function disegnaTram(ctx, vista, z, opzioni = {}) {
     testa(ctx, vista, zVicino, dentro - verso * 0.1, fuori + verso * 0.1, 0.5, 0.72);
   }
 
-  // l'asta del trolley verso il filo
-  linea(ctx, vista, [(dentro + fuori) / 2, 3.34, z + 3], [(dentro + fuori) / 2, 5.5, z - 1], COLORI.tramLegno, 0.07);
+  // L'asta del trolley, ma solo sui tram di scena.
+  //
+  // Va dal tetto al filo e punta **verso** la telecamera: su un tram lontano e'
+  // un dettaglio che lo fa tram, su uno che ti viene addosso in mezzo alla
+  // strada diventa una sbarra diagonale che taglia lo schermo proprio nel
+  // momento in cui devi guardare dove passare.
+  if (asta) {
+    linea(ctx, vista, [(dentro + fuori) / 2, 3.34, z + 3], [(dentro + fuori) / 2, 5.5, z - 1], COLORI.tramLegno, 0.07);
+  }
 }
 
 /** I fili della linea aerea, tirati lungo la sede del tram. */
@@ -963,12 +971,24 @@ function disegnaBinariSullaStrada(ctx, vista, tram, distanza) {
   const a = Math.min(tram.binariCentro + META_BINARI - distanza, DISTANZA_VISIBILE);
   if (a <= da) return;
 
-  // Passi corti vicino e lunghi lontano: la curva d'ingresso sta in fondo, dove
-  // pochi metri valgono pochi pixel, e li' bastano segmenti radi.
-  const passi = 20;
-  for (let i = 0; i < passi; i += 1) {
-    const zA = da + ((a - da) * i) / passi;
-    const zB = da + ((a - da) * (i + 1)) / passi;
+  // I segmenti si appoggiano a una **griglia fissa nel mondo**, ancorata al
+  // centro dei binari, non ripartiti fra i due estremi visibili.
+  //
+  // La differenza non e' teorica. Suddividendo la finestra visibile, i vertici
+  // della spezzata si spostano a ogni fotogramma insieme al giocatore, e nel
+  // tratto in curva l'errore di approssimazione oscilla avanti e indietro: si
+  // vede il binario ondeggiare come una corda. Ancorando i vertici a metri
+  // interi del mondo, restano dove sono e l'onda sparisce.
+  const PASSO = 2.5;
+  const primo = Math.floor((da + distanza - tram.binariCentro) / PASSO);
+  const ultimo = Math.ceil((a + distanza - tram.binariCentro) / PASSO);
+
+  for (let k = primo; k < ultimo; k += 1) {
+    const zMondoA = tram.binariCentro + k * PASSO;
+    const zMondoB = zMondoA + PASSO;
+    const zA = Math.max(zMondoA - distanza, da);
+    const zB = Math.min(zMondoB - distanza, a);
+    if (zB <= zA) continue;
     const xA = mezzeriaBinari(tram, zA + distanza);
     const xB = mezzeriaBinari(tram, zB + distanza);
 
@@ -996,10 +1016,14 @@ function disegnaOstacolo(ctx, vista, ostacolo, z, mondo) {
     // La cassa e' larga quanto la corsia che l'urto gli riconosce. Un tram
     // disegnato stretto e che prende largo sarebbe una fregatura: quello che si
     // vede deve essere quello che ti prende.
+    // Piu' stretto della corsia, non largo quanto lei. Due tram affiancati
+    // devono leggersi come **due**: a filo di corsia si toccavano e sembravano
+    // una parete sola, e una parete non si capisce come si passi.
     return disegnaTram(ctx, vista, z, {
       centro: xDiCorsia(ostacolo.corsiaInizio),
-      semi: LARGHEZZA_CORSIA / 2 - 0.05,
+      semi: LARGHEZZA_CORSIA * 0.39,
       frontale: true,
+      asta: false,
     });
   }
   if (ostacolo.tipo === AIUOLA) return disegnaAiuola(ctx, vista, ostacolo, z);

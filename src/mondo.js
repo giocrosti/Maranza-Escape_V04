@@ -10,7 +10,7 @@ import {
   VELOCITA_INIZIALE,
   VELOCITA_MASSIMA,
 } from './costanti.js';
-import { creaVista, ridimensionaVista } from './proiezione.js';
+import { creaVista, ridimensionaVista, xDiCorsia, SEGUITO_CAMERA } from './proiezione.js';
 import { creaCorridore, avanzaCorridore, cambiaCorsia, salta, scivola, corsieOccupate, inciampa } from './corridore.js';
 import { prendeIlCorridore, avvicinaOstacoli, margineScampato } from './ostacoli.js';
 import {
@@ -265,6 +265,7 @@ function azzeraPartita(mondo, rng) {
   mondo.scossa = 0;
   mondo.fasePrecedente = 0;
   mondo.corridore = creaCorridore();
+  mondo.vista.guarda = 0;
   mondo.percorso = creaPercorso(rng);
   azzeraInseguitori(mondo.inseguitori);
   return mondo;
@@ -352,6 +353,7 @@ export function avanzaMondo(mondo, dt, rng = Math.random) {
   }
   mondo.tempo += passo;
   mondo.velocita = velocitaCorsa(mondo);
+  inseguiConLaCamera(mondo, passo);
   mondo.scorrimento += mondo.velocita * passo;
 
   if (mondo.stato !== 'in-gioco') {
@@ -386,6 +388,18 @@ export function avanzaMondo(mondo, dt, rng = Math.random) {
 
   mondo.punteggio = Math.floor(mondo.distanza) + mondo.monete * PUNTI_PER_MONETA;
   return mondo;
+}
+
+/** La telecamera insegue l'omino di lato, con un ritardo.
+ *
+ *  Si scrive con un esponenziale e non con "mi avvicino del 12% a ogni
+ *  fotogramma": la seconda forma insegue al doppio della velocita' su uno
+ *  schermo a 120 Hz, e il ritardo — che e' tutto l'effetto — dipenderebbe dal
+ *  telefono invece che dal gioco. */
+function inseguiConLaCamera(mondo, dt) {
+  const bersaglio = xDiCorsia(mondo.corridore.posizione) * SEGUITO_CAMERA;
+  const quanto = 1 - Math.exp(-dt / 0.13);
+  mondo.vista.guarda += (bersaglio - mondo.vista.guarda) * quanto;
 }
 
 /** Il piede che tocca terra e l'atterraggio dopo un salto. */

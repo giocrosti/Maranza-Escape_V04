@@ -36,9 +36,32 @@ const CADUTA_MASSIMA = 0.42;
  *  esploderebbe e le figure diventerebbero grandi quanto lo schermo. */
 export const DISTANZA_MINIMA = 0.4;
 
+/** Quanto la telecamera segue l'omino quando cambia corsia, da 0 (ferma) a 1
+ *  (incollata).
+ *
+ *  Questo e' il pezzo che mancava per far sembrare il gioco un gioco e non una
+ *  proiezione. Con la telecamera inchiodata al centro, cambiare corsia sposta
+ *  l'omino nel riquadro e basta; con la telecamera che lo insegue **in ritardo**
+ *  si sente lo scarto — il mondo scorre di lato, l'omino si stacca per un
+ *  istante e poi si ricentra. E' il modo in cui si legge un cambio di corsia in
+ *  tutti i giochi di corsa fatti bene.
+ *
+ *  Non 1: seguirlo del tutto cancellerebbe il movimento invece di raccontarlo. */
+export const SEGUITO_CAMERA = 0.55;
+
 /** I dati che servono a proiettare, ricalcolati a ogni ridimensionamento. */
 export function creaVista(larghezza, altezza) {
-  const vista = { larghezza: 0, altezza: 0, centroX: 0, orizzonte: 0, fuoco: 0 };
+  const vista = {
+    larghezza: 0,
+    altezza: 0,
+    centroX: 0,
+    orizzonte: 0,
+    fuoco: 0,
+    /** Dove guarda la telecamera, in metri dalla riga di mezzo. Non e' dove sta
+     *  l'omino: e' dove **stava** un istante fa, ed e' quel ritardo a far
+     *  sentire lo spostamento. */
+    guarda: 0,
+  };
   return ridimensionaVista(vista, larghezza, altezza);
 }
 
@@ -63,7 +86,10 @@ export function proietta(vista, x, y, z) {
   const distanza = Math.max(z + DISTANZA_CAMERA, DISTANZA_MINIMA);
   const scala = vista.fuoco / distanza;
   return {
-    x: vista.centroX + x * scala,
+    // `guarda` sposta il punto di vista, non l'immagine: entra prima della
+    // divisione prospettica, quindi le cose vicine scorrono di lato piu' di
+    // quelle lontane. E' una parallasse vera, gratis.
+    x: vista.centroX + (x - vista.guarda) * scala,
     y: vista.orizzonte + (ALTEZZA_CAMERA - y) * scala,
     scala,
   };

@@ -233,7 +233,7 @@ export class Scena {
     // distanza si racconta togliendo **contrasto e colore**, non nitidezza.
     // Rimetterla e' cambiare `sfocatura` da 0 a 3.
     this.filtroProfondita = creaFiltroProfondita({
-      aria: [0.82, 0.87, 0.92, 0.14],
+      aria: [0.82, 0.87, 0.92, 0.1],
       fuoco: 0.42,
       sfocatura: 0,
       potenza: 1.8,
