@@ -22,15 +22,21 @@ import {
   bordoSinistroDiCorsia,
   DISTANZA_CAMERA,
 } from './proiezione.js';
-import { SEMI_STRADA, LARGHEZZA_CORSIA, DISTANZA_VISIBILE, ALTEZZA_OMINO } from './costanti.js';
+import {
+  SEMI_STRADA,
+  LARGHEZZA_CORSIA,
+  DISTANZA_VISIBILE,
+  ALTEZZA_OMINO,
+  DURATA_SCIVOLATA,
+} from './costanti.js';
 import {
   BUCA,
   AIUOLA,
   MONOPATTINO,
-  PONTICELLO,
+  PORTALE,
   ARCO,
   TRAM,
-  ALTEZZA_PONTICELLO,
+  ALTEZZA_PORTALE,
   META_BINARI,
   INGRESSO_BINARI,
   corsieOstacolo,
@@ -44,6 +50,8 @@ import {
   fascia,
   parete,
   testa,
+  pianoFacciata,
+  poligonoFacciata,
   scatola,
   linea,
   chioma,
@@ -102,6 +110,9 @@ export const CITTA = creaCitta();
 /** Oltre questa z gli arredi non si disegnano piu': sono dietro la telecamera.
  *  Non si taglia prima, o i lampioni sparirebbero mentre li stai superando. */
 const CODA_ARREDI = -DISTANZA_CAMERA + 1.1;
+
+/** Quanto si piega l'omino facendo il passo laterale. */
+const QUARANTACINQUE_GRADI = Math.PI / 4;
 
 const COLORI = {
   // cielo e foschia non stanno piu' qui: sono strisce di `scena/fondali.js`
@@ -818,16 +829,11 @@ function disegnaTram(ctx, vista, z, opzioni = {}) {
   // lo zoccolo scuro e i due carrelli sotto la cassa
   ctx.fillStyle = COLORI.tramLegno;
   parete(ctx, vista, filo, 0.3, 0.44, zVicino, zLontano);
+  // I carrelli, senza ruote a vista: un tram moderno ha le fiancate che
+  // scendono fino a un palmo dal binario, e le ruote non si vedono affatto.
   ctx.fillStyle = '#26282d';
   for (const zCarrello of [zVicino + lunghezza * 0.22, zLontano - lunghezza * 0.22]) {
     parete(ctx, vista, dentro - verso * 0.06, 0.02, 0.34, zCarrello - 1.1, zCarrello + 1.1);
-    for (const zRuota of [zCarrello - 0.7, zCarrello + 0.7]) {
-      const ruota = proietta(vista, dentro, 0.32, zRuota);
-      if (ruota.scala <= 0) continue;
-      ctx.beginPath();
-      ctx.arc(ruota.x, ruota.y, 0.3 * ruota.scala, 0, Math.PI * 2);
-      ctx.fill();
-    }
   }
 
   // La coda, che e' la faccia che si vede arrivandogli dietro: finestrone,
@@ -1028,10 +1034,11 @@ function disegnaOstacolo(ctx, vista, ostacolo, z, mondo) {
   }
   if (ostacolo.tipo === AIUOLA) return disegnaAiuola(ctx, vista, ostacolo, z);
   if (ostacolo.tipo === MONOPATTINO) return disegnaMonopattinoConMaranza(ctx, vista, ostacolo, z, mondo);
+  if (ostacolo.tipo === PORTALE) return disegnaPortale(ctx, vista, ostacolo, z);
   if (ostacolo.tipo === ARCO) {
     return disegnaArco(ctx, vista, z, 22, BORDO_MARCIAPIEDE, LARGHEZZA_CORSIA / 2);
   }
-  return disegnaPonticello(ctx, vista, ostacolo, z);
+  return disegnaPortale(ctx, vista, ostacolo, z);
 }
 
 function estremiCorsie(ostacolo) {
@@ -1164,89 +1171,111 @@ function disegnaAiuola(ctx, vista, aiuola, z) {
   }
 }
 
-/** Il ponticello di ghisa: due spalle in pietra, l'arcata ribassata, la
- *  ringhiera a volute e le statuine sui pilastrini. Ci si passa **sotto**, e
- *  l'intradosso sta a ALTEZZA_PONTICELLO: e' quella la quota che decide. */
-function disegnaPonticello(ctx, vista, ponticello, z) {
-  const { sinistra, destra } = estremiCorsie(ponticello);
-  const y = ALTEZZA_PONTICELLO;
-  const spalla = 0.55;
-  const zVicino = z - ponticello.profondita / 2;
-  const zLontano = z + ponticello.profondita / 2;
-  const daX = sinistra - 0.35;
-  const aX = destra + 0.35;
+/** Il portale dell'Area C.
+ *
+ *  Due pali sui marciapiedi, fuori dall'asfalto, e una traversa che attraversa
+ *  tutta la carreggiata: sotto ci si passa abbassandosi, e non c'e' nessun'altra
+ *  strada. Sulla traversa il disco rosso del varco attivo e le due telecamere,
+ *  che sono le cose per cui un milanese lo riconosce a colpo d'occhio.
+ *
+ *  E' basso: un portale vero sta a cinque metri, questo a poco piu' di uno. E'
+ *  la stessa licenza che si prendeva il ponticello prima di lui — la quota la
+ *  decide il gioco, non l'urbanistica — ma qui almeno la forma resta quella
+ *  giusta, e non c'e' niente che sembri occupare una corsia che invece e' libera.
+ */
+function disegnaPortale(ctx, vista, portale, z) {
+  const y = ALTEZZA_PORTALE;
+  const traversa = 0.42; // spessore della traversa, sopra la quota di passaggio
+  const cima = 2.95; // quanto sono alti i pali
+  const insegna = [2.25, 2.9]; // dove sta il pannello con la scritta
+  const zVicino = z - portale.profondita / 2;
+  const zLontano = z + portale.profondita / 2;
+  const spalla = 0.3;
+  const sinistra = -(BORDO_MARCIAPIEDE + 0.5);
+  const destra = BORDO_MARCIAPIEDE + 0.5;
 
-  // ombra sotto l'arcata, tenue: marcata si leggerebbe come una buca
-  ctx.fillStyle = 'rgba(0,0,0,0.16)';
-  fascia(ctx, vista, daX, aX, zVicino, zLontano, 0.015);
-
-  // le due spalle in pietra, che scendono a terra fuori dal varco
-  for (const x of [daX - spalla, aX]) {
-    ctx.fillStyle = '#9a9287';
-    testa(ctx, vista, zVicino, x, x + spalla, 0, y + 1.5);
-    ctx.fillStyle = '#877f74';
-    parete(ctx, vista, x + (x < 0 ? spalla : 0), 0, y + 1.5, zVicino, zLontano);
+  // I pali arrivano a tre metri, molto piu' in alto di quello sotto cui si
+  // passa. Non e' decorazione: la traversa da sola e' alta quaranta centimetri
+  // e a trenta metri diventa una riga di due pixel, cioe' un ostacolo che non
+  // si vede arrivare. Sono i pali a dare la sagoma che si legge da lontano, e
+  // il pannello in cima a dire cos'e' prima ancora di distinguere le strisce.
+  //
+  // Stanno **sul marciapiede**, fuori dall'asfalto: e' tutta la ragione per cui
+  // questo ostacolo ha sostituito il ponticello.
+  for (const lato of [-1, 1]) {
+    const x = lato * (BORDO_MARCIAPIEDE + 0.5);
+    ctx.fillStyle = '#7c828c';
+    testa(ctx, vista, zVicino, x - spalla / 2, x + spalla / 2, 0, cima);
+    ctx.fillStyle = '#666c75';
+    parete(ctx, vista, x + (lato < 0 ? spalla / 2 : -spalla / 2), 0, cima, zVicino, zLontano);
+    ctx.fillStyle = '#9aa0a8';
+    testa(ctx, vista, zVicino, x - spalla * 1.1, x + spalla * 1.1, 0, 0.34);
   }
 
-  // l'impalcato: l'arcata ribassata sotto e la fascia piena sopra
-  const arcata = [];
-  for (let i = 0; i <= 14; i += 1) {
-    const t = i / 14;
-    arcata.push([daX + (aX - daX) * t, y + Math.sin(t * Math.PI) * 0.3]);
-  }
-  arcata.push([aX, y + 1.05], [daX, y + 1.05]);
-  ctx.fillStyle = '#8f9299';
-  ctx.beginPath();
-  arcata.forEach(([x, altezza], i) => {
-    const p = proietta(vista, x, altezza, zVicino);
-    if (i === 0) ctx.moveTo(p.x, p.y);
-    else ctx.lineTo(p.x, p.y);
-  });
-  ctx.closePath();
-  ctx.fill();
+  // Il pannello in cima: quello che si riconosce per primo.
+  ctx.fillStyle = '#e9edf2';
+  testa(ctx, vista, zVicino, sinistra + 1.2, destra - 1.2, insegna[0], insegna[1]);
+  ctx.fillStyle = '#b9c0c9';
+  fascia(ctx, vista, sinistra + 1.2, destra - 1.2, zVicino, zLontano, insegna[1]);
 
-  // il piano del ponte, visto di taglio
-  ctx.fillStyle = '#a8a49b';
-  testa(ctx, vista, zVicino, daX, aX, y + 1.05, y + 1.22);
-  ctx.fillStyle = '#8b877e';
-  fascia(ctx, vista, daX, aX, zVicino, zLontano, y + 1.22);
+  // la traversa sotto cui si passa
+  ctx.fillStyle = '#8b919b';
+  testa(ctx, vista, zVicino, sinistra, destra, y, y + traversa);
+  ctx.fillStyle = '#5d636c';
+  fascia(ctx, vista, sinistra, destra, zVicino, zLontano, y);
+  ctx.fillStyle = '#a7adb6';
+  fascia(ctx, vista, sinistra, destra, zVicino, zLontano, y + traversa);
 
-  // la ringhiera a volute
-  const p = proietta(vista, 0, y, zVicino);
-  ctx.strokeStyle = '#4f545c';
-  ctx.lineWidth = Math.max(1, 0.05 * p.scala);
-  const alto = proietta(vista, 0, y + 1.85, zVicino);
-  ctx.beginPath();
-  ctx.moveTo(proietta(vista, daX, y + 1.85, zVicino).x, alto.y);
-  ctx.lineTo(proietta(vista, aX, y + 1.85, zVicino).x, alto.y);
-  ctx.stroke();
-  const passo = (aX - daX) / 12;
-  for (let i = 0; i <= 12; i += 1) {
-    const x = daX + i * passo;
-    const basso = proietta(vista, x, y + 1.22, zVicino);
-    const cima = proietta(vista, x, y + 1.85, zVicino);
-    ctx.beginPath();
-    ctx.moveTo(basso.x, basso.y);
-    ctx.lineTo(cima.x, cima.y);
-    ctx.stroke();
-    if (i % 2 === 0) continue;
-    // le volute fra un montante e l'altro
-    const mezzo = proietta(vista, x, y + 1.54, zVicino);
-    ctx.beginPath();
-    ctx.arc(mezzo.x, mezzo.y, 0.28 * mezzo.scala, 0, Math.PI * 2);
-    ctx.stroke();
+  if (zVicino <= 0.4) return; // da qui in poi si vedrebbe solo il di sotto
+
+  // La banda gialla e nera sul bordo: e' quella che dice "qui ci si abbassa",
+  // ed e' l'unico segnale che serve leggere in fretta.
+  const bordo = pianoFacciata(vista, zVicino, sinistra, destra, y, y + traversa);
+  const strisce = 24;
+  for (let i = 1; i < strisce; i += 2) {
+    poligonoFacciata(
+      ctx,
+      bordo,
+      [[i / strisce, 0], [(i + 1) / strisce, 0], [(i + 1) / strisce, 1], [i / strisce, 1]],
+      '#d8a92a',
+    );
   }
 
-  // i pilastrini con le statuine, uno per spalla
-  for (const x of [daX - spalla / 2, aX + spalla / 2]) {
-    const base = proietta(vista, x, y + 1.22, zVicino);
-    const dado = proietta(vista, x, y + 2.05, zVicino);
-    ctx.fillStyle = '#b0aa9f';
-    ctx.fillRect(base.x - 0.3 * base.scala, dado.y, 0.6 * base.scala, base.y - dado.y);
-    ctx.fillStyle = ponticello.versoDestra ? '#8d8677' : '#948d7e';
+  // il disco rosso del varco attivo, sul pannello
+  const disco = proietta(vista, -1.9, (insegna[0] + insegna[1]) / 2, zVicino);
+  if (disco.scala > 3) {
+    ctx.fillStyle = '#c0392b';
     ctx.beginPath();
-    ctx.ellipse(dado.x, dado.y - 0.22 * dado.scala, 0.22 * dado.scala, 0.32 * dado.scala, 0, 0, Math.PI * 2);
+    ctx.arc(disco.x, disco.y, 0.26 * disco.scala, 0, Math.PI * 2);
     ctx.fill();
+    ctx.fillStyle = '#f6efd0';
+    ctx.beginPath();
+    ctx.arc(disco.x, disco.y, 0.15 * disco.scala, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // la scritta
+  const targa = proietta(vista, 0.5, (insegna[0] + insegna[1]) / 2, zVicino);
+  if (targa.scala > 7) {
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#2b3038';
+    ctx.font = `800 ${0.42 * targa.scala}px system-ui, -apple-system, sans-serif`;
+    ctx.fillText('AREA C', targa.x, targa.y);
+  }
+
+  // le due telecamere appese alla traversa, puntate addosso
+  for (const lato of [-1, 1]) {
+    const x = lato * 2.4;
+    ctx.fillStyle = '#2b3038';
+    testa(ctx, vista, zVicino, x - 0.14, x + 0.14, insegna[0] - 0.4, insegna[0] - 0.05);
+    const occhio = proietta(vista, x, insegna[0] - 0.22, zVicino - 0.05);
+    if (occhio.scala > 6) {
+      ctx.fillStyle = '#111418';
+      ctx.beginPath();
+      ctx.arc(occhio.x, occhio.y, 0.08 * occhio.scala, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 }
 
@@ -1287,15 +1316,29 @@ function disegnaRaccolta(ctx, vista, raccolta, z, tempo) {
 
   if (raccolta.tipo === MONETA) {
     const giro = Math.abs(Math.cos(tempo * 3 + raccolta.z));
-    const raggio = 0.3 * p.scala;
+    const raggio = 0.45 * p.scala;
+
+    // Lo spessore: una moneta girando non diventa una riga, diventa il suo
+    // bordo. Il minimo del semiasse orizzontale e' il 10% del diametro, cioe'
+    // meta' di uno spessore del 20% — ed e' quello a farla sembrare un oggetto
+    // invece di un adesivo.
+    const semiSpessore = raggio * 0.2;
+    const semiX = Math.max(semiSpessore, raggio * giro);
+
+    // il taglio, sempre visibile
     ctx.fillStyle = COLORI.monetaScura;
     ctx.beginPath();
-    ctx.ellipse(p.x, p.y, Math.max(1, raggio * giro), raggio, 0, 0, Math.PI * 2);
+    ctx.ellipse(p.x, p.y, semiX, raggio, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = COLORI.moneta;
-    ctx.beginPath();
-    ctx.ellipse(p.x, p.y, Math.max(1, raggio * giro * 0.74), raggio * 0.78, 0, 0, Math.PI * 2);
-    ctx.fill();
+
+    // la faccia, che si stringe fino a sparire quando la moneta e' di taglio
+    const facciaX = raggio * giro - semiSpessore;
+    if (facciaX > 0.5) {
+      ctx.fillStyle = COLORI.moneta;
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, facciaX, raggio * 0.82, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
     return;
   }
 
@@ -1472,7 +1515,11 @@ function disegnaCorridore(ctx, mondo) {
   );
   ctx.fill();
 
-  const posa = abbassato(corridore) ? 'scivolata' : corridore.inAria ? 'salto' : 'corsa';
+  const posa = abbassato(corridore) ? 'capriola' : corridore.inAria ? 'salto' : 'corsa';
+
+  // Quanto e' avanti la capriola, da 0 a 1. La scivolata dura sempre lo stesso,
+  // quindi basta guardare quanto ne resta.
+  const capriola = abbassato(corridore) ? 1 - corridore.scivolata / DURATA_SCIVOLATA : 0;
   const lampeggia = mondo.tempo < mondo.invulnerabileFinoA && Math.floor(mondo.tempo * 12) % 2 === 0;
 
   // la scia prima della figura: passandoci sopra sembrerebbe una gabbia
@@ -1484,6 +1531,20 @@ function disegnaCorridore(ctx, mondo) {
   ctx.globalAlpha = lampeggia ? 0.55 : 1;
   conFigura(ctx, p.x, p.y, p.scala, () => {
     if (corridore.inciampo > 0) ctx.rotate(Math.sin(corridore.inciampo * 40) * 0.12);
+
+    // La capriola: un giro intero in avanti, attorno al centro della palla e
+    // non ai piedi — ruotando attorno ai piedi rotolerebbe fuori dallo schermo
+    // invece di rotolare su se' stesso.
+    if (posa === 'capriola') {
+      ctx.translate(0, 0.42);
+      ctx.rotate(capriola * Math.PI * 2);
+      ctx.translate(0, -0.42);
+    } else if (corridore.inclinazione) {
+      // Il passo laterale: il busto si piega di quarantacinque gradi verso dove
+      // si sta andando, col perno ai piedi. E' molto — ma un cambio di corsia
+      // dura un sesto di secondo, e sotto i quaranta gradi non si vedrebbe.
+      ctx.rotate(corridore.inclinazione * QUARANTACINQUE_GRADI);
+    }
 
     if (inMacchina) {
       // Durante lo scatto non si corre: si sale su una macchinina rossa. Le
@@ -1504,6 +1565,8 @@ function disegnaCorridore(ctx, mondo) {
       luce: conMadonnina ? '#fbeeb8' : COLORI.ominoOmbra,
       fase: corridore.fase,
       posa,
+      inclinazione: corridore.inclinazione,
+      camicia: true,
     });
   });
   ctx.globalAlpha = 1;
@@ -2050,7 +2113,8 @@ const SPIEGAZIONI = {
   buca: 'sei finito in una buca',
   aiuola: "sei finito in un'aiuola del sindaco",
   monopattino: 'ti ha travolto un monopattino',
-  ponticello: 'hai preso in pieno il ponticello',
+  portale: 'hai preso in pieno il portale dell Area C',
+  tram: 'ti ha preso il tram',
   arco: "sei andato addosso a un pilone dell'arco",
   raggiunto: 'ti hanno raggiunto',
 };

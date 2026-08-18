@@ -85,6 +85,20 @@ const RICETTE = {
     colore: [0.86, 0.94, 1.0],
     opacita: 1,
   },
+  moneta: {
+    // Poche, piccole e velocissime: un brilluccichio, non uno scoppio. Deve
+    // dire "presa" nell'istante in cui succede e sparire prima che l'occhio
+    // torni sulla strada.
+    quante: 8,
+    vita: [0.18, 0.34],
+    raggio: [0.025, 0.06],
+    crescita: 0.4,
+    velocita: { x: 1.9, y: 1.6, z: 0.9 },
+    gravita: -1.6,
+    attrito: 3.8,
+    colore: [1.0, 0.86, 0.36],
+    opacita: 1,
+  },
   scudo: {
     quante: 14,
     vita: [0.3, 0.6],
@@ -181,7 +195,14 @@ export function consumaEventi(sistema, mondo, rng = Math.random) {
     if (!RICETTE[evento.tipo]) continue;
     const x = xDiCorsia(evento.corsia ?? mondo.corridore.posizione);
     // l'urto nasce all'altezza del petto, la polvere ai piedi
-    const y = evento.tipo === 'urto' || evento.tipo === 'travolto' || evento.tipo === 'scudo' ? 0.9 : 0;
+    // ogni cosa nasce dove succede: la polvere ai piedi, l'urto al petto, il
+    // brilluccichio della moneta all'altezza della pancia, dove l'ha infilata
+    const y =
+      evento.tipo === 'moneta'
+        ? 1.0
+        : evento.tipo === 'urto' || evento.tipo === 'travolto' || evento.tipo === 'scudo'
+          ? 0.9
+          : 0;
     emetti(sistema, evento.tipo, { x, y, z: 0 }, evento.forza ?? 1, rng);
   }
 }

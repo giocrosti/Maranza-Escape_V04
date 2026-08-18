@@ -103,10 +103,22 @@ funziona anche quando l'ostacolo prende tutta la strada:
 | ostacolo | gesto | note |
 |---|---|---|
 | buca, aiuola | si salta | |
-| ponticello | ci si abbassa | |
+| portale (Area C) | ci si abbassa | sempre tutta la strada |
 | monopattino | si cambia corsia | viene incontro |
 | arco | corsia centrale | i piloni chiudono le altre due |
 | tram | si cambia corsia | piu' stretto di una corsia, 19 metri, viene incontro |
+
+**Il portale dell'Area C copre sempre tutta la carreggiata**, e non e' pigrizia.
+Una cosa sotto cui si passa e' un elemento orizzontale, e un elemento
+orizzontale che copre solo una corsia deve appoggiarsi da qualche parte: il
+ponticello che c'era prima aveva le spalle 90 cm dentro le corsie accanto, che
+erano libere ma non sembravano. I pali del portale stanno sul marciapiede, e
+cosi' non c'e' piu' niente da interpretare.
+
+I pali sono alti tre metri anche se si passa a uno: la traversa da sola, a
+trenta metri, e' una riga di due pixel. E' la sagoma alta a farlo vedere
+arrivare, ed e' il pannello in cima a dire cos'e' prima ancora di distinguere le
+strisce gialle.
 
 Il tram e' l'ostacolo piu' frequente della strada (`QUOTA_TRAM`), e viene da
 solo, in due o in tre. Il terzetto e' sempre **sfalsato**, mai affiancato: lo

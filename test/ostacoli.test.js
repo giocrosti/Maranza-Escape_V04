@@ -3,7 +3,7 @@ import {
   creaBuca,
   creaAiuola,
   creaMonopattino,
-  creaPonticello,
+  creaPortale,
   creaArco,
   creaTram,
   spintaPerAvvicinamento,
@@ -59,17 +59,11 @@ test('il monopattino si evita solo cambiando corsia', () => {
   assert(!prendeIlCorridore(monopattino, creaCorridore(2), 0), 'anche dall altro lato');
 });
 
-test('sotto il ponticello si passa solo abbassandosi', () => {
-  const ponticello = creaPonticello(0, 0, 3);
-  assert(prendeIlCorridore(ponticello, creaCorridore(1), 0), 'in piedi lo si prende in pieno');
-  assert(prendeIlCorridore(ponticello, inVolo(1), 0), 'saltare peggiora le cose');
-  assert(!prendeIlCorridore(ponticello, abbassato(1), 0), 'abbassati ci si passa sotto');
-});
-
-test('un ponticello corto si evita anche di lato', () => {
-  const ponticello = creaPonticello(0, 2, 1);
-  assert(prendeIlCorridore(ponticello, creaCorridore(2), 0));
-  assert(!prendeIlCorridore(ponticello, creaCorridore(1), 0), 'in un altra corsia non tocca');
+test('sotto il portale si passa solo abbassandosi', () => {
+  const portale = creaPortale(0);
+  assert(prendeIlCorridore(portale, creaCorridore(1), 0), 'in piedi lo si prende in pieno');
+  assert(prendeIlCorridore(portale, inVolo(1), 0), 'saltare peggiora le cose');
+  assert(!prendeIlCorridore(portale, abbassato(1), 0), 'abbassati ci si passa sotto');
 });
 
 test('l aiuola del sindaco si scavalca, come una buca', () => {
@@ -222,4 +216,13 @@ test('i binari coprono tutto il viaggio del tram', () => {
     nascita + tram.profondita / 2 < tram.binariCentro + META_BINARI,
     'il tram nasce oltre la fine dei binari',
   );
+});
+
+test('il portale copre sempre tutta la strada', () => {
+  // Non ha una larghezza da tirare a sorte, ed e' il motivo per cui esiste: un
+  // elemento orizzontale che copre solo una corsia deve appoggiarsi da qualche
+  // parte, e quelle spalle finivano dentro corsie che invece erano libere.
+  const portale = creaPortale(120);
+  assertUguale(corsieOstacolo(portale).length, CORSIE, 'il portale deve chiudere tutta la strada');
+  assert(!lasciaUnaCorsiaLibera(portale), 'e non deve lasciare scappatoie di lato');
 });

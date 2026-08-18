@@ -64,6 +64,15 @@ const SCENE = {
   /* Con l'omino di lato si vede la telecamera che lo insegue: il mondo scorre
      e il punto di fuga si sposta. Con l'omino al centro non si vedrebbe. */
   camera: { stato: 'in-gioco', scorrimento: 44, distanza: 44, velocita: 18, corsia: 0, attesa: 700 },
+  /* Il passo laterale: si mette il bersaglio a due corsie di distanza e si
+     fotografa mentre e' a meta' strada. */
+  scarto: { stato: 'in-gioco', scorrimento: 44, distanza: 44, velocita: 18, scarto: 1 },
+  capriola: { stato: 'in-gioco', scorrimento: 44, distanza: 44, velocita: 18, capriola: 0.35 },
+  portale: { stato: 'in-gioco', scorrimento: 90, distanza: 90, velocita: 18,
+    ostacoli: [{ tipo: 'portale', avanti: 9 }] },
+  portaleLontano: { stato: 'in-gioco', scorrimento: 90, distanza: 90, velocita: 18,
+    ostacoli: [{ tipo: 'portale', avanti: 34 }] },
+  monete: { stato: 'in-gioco', scorrimento: 120, distanza: 120, velocita: 18, monete: true },
   minaccia: {
     stato: 'in-gioco',
     scorrimento: 430,
@@ -193,12 +202,35 @@ async function principale() {
         m.corridore.inAria = true;
       }
       if (p.distacco !== undefined) m.inseguitori.distacco = p.distacco;
+      if (p.scarto) {
+        m.corridore.bersaglio = corsia + p.scarto;
+        m.corridore.inclinazione = p.scarto;
+      }
+      if (p.capriola) {
+        m.corridore.scivolata = p.capriola;
+      }
+      if (p.monete) {
+        m.percorso.raccolte = [];
+        for (let i = 0; i < 7; i += 1) {
+          m.percorso.raccolte.push({
+            tipo: 'moneta', z: m.distanza + 6 + i * 3.3, corsia, y: 0.85,
+            spostamento: 0, presa: false,
+          });
+        }
+      }
       if (p.ostacoli) {
         // Si sgombera prima: le pose si scattano di fila sulla stessa pagina, e
         // senza questo gli ostacoli della posa precedente restano in scena.
         m.percorso.ostacoli = [];
         for (const voce of p.ostacoli) {
           const z = m.distanza + voce.avanti;
+          if (voce.tipo === 'portale') {
+            m.percorso.ostacoli.push({
+              tipo: 'portale', z, profondita: 1.1,
+              corsiaInizio: 0, quanteCorsie: 3, colpito: false,
+            });
+            continue;
+          }
           if (voce.tipo === 'arco') {
             m.percorso.ostacoli.push({
               tipo: 'arco', z, profondita: 4,

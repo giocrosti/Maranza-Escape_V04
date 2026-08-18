@@ -37,6 +37,11 @@ export function creaCorridore(corsia = 1) {
     scivolataInAttesa: false, // ha premuto "giu'" mentre era in aria
     fase: 0, // avanzamento del passo di corsa, per il disegno
     inciampo: 0, // secondi di barcollamento dopo un urto
+    /** Da -1 a 1: quanto e' inclinato di lato. Non e' la direzione del
+     *  movimento — quella si spegne di colpo quando la corsia e' raggiunta —
+     *  ma un valore che la insegue e poi torna dritto, cosi' il corpo si piega
+     *  entrando e si raddrizza uscendo invece di scattare. */
+    inclinazione: 0,
   };
 }
 
@@ -96,6 +101,13 @@ export function avanzaCorridore(corridore, dt, velocita = 0) {
   const mancante = corridore.bersaglio - corridore.posizione;
   corridore.posizione =
     Math.abs(mancante) <= passo ? corridore.bersaglio : corridore.posizione + Math.sign(mancante) * passo;
+
+  // L'inclinazione insegue la direzione dello spostamento con un esponenziale:
+  // scritta come "mi avvicino del tot a ogni fotogramma" si piegherebbe al
+  // doppio della velocita' su uno schermo a 120 Hz.
+  const verso = Math.abs(mancante) <= passo ? 0 : Math.sign(mancante);
+  const inseguimento = 1 - Math.exp(-dt / (verso === 0 ? 0.09 : 0.05));
+  corridore.inclinazione += (verso - corridore.inclinazione) * inseguimento;
 
   // Le gambe girano con la strada che scorre, non col cronometro: rallentando
   // il passo si accorcia da solo. In aria non si corre.

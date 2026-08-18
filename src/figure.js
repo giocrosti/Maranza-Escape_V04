@@ -62,6 +62,11 @@ export function disegnaFigura(ctx, opzioni) {
     borsello = null,
     banda = null,
     base = 0,
+    /** Da -1 a 1: quanto sta scartando di lato. Apre il braccio da quella parte
+     *  e fa svolazzare la camicia. */
+    inclinazione = 0,
+    /** Vero per l'omino: la camicia di lino e' sua e di nessun altro. */
+    camicia = false,
   } = opzioni;
 
   ctx.save();
@@ -69,6 +74,12 @@ export function disegnaFigura(ctx, opzioni) {
 
   if (posa === 'scivolata') {
     disegnaAccosciato(ctx, colore, luce, cappello);
+    ctx.restore();
+    return;
+  }
+
+  if (posa === 'capriola') {
+    disegnaRaggomitolato(ctx, colore, luce, camicia);
     ctx.restore();
     return;
   }
@@ -124,8 +135,11 @@ export function disegnaFigura(ctx, opzioni) {
       ctx.stroke();
     }
   } else {
-    braccio(ctx, -1, sinistro, spalla, anca, colore, coltello);
-    braccio(ctx, 1, destro, spalla, anca, colore, coltello);
+    // Il braccio dalla parte in cui si scarta si allarga per bilanciare, come
+    // fa chiunque cambi direzione di corsa. E' la meta' della leggibilita' di
+    // un cambio di corsia: l'altra meta' e' l'inclinazione del busto.
+    braccio(ctx, -1, sinistro, spalla, anca, colore, coltello, Math.max(0, -inclinazione));
+    braccio(ctx, 1, destro, spalla, anca, colore, coltello, Math.max(0, inclinazione));
   }
 
   // 2. busto
@@ -135,6 +149,8 @@ export function disegnaFigura(ctx, opzioni) {
   ctx.fillStyle = luce;
   riquadroTondo(ctx, -0.25, spalla - 0.12, 0.5, 0.16, 0.07);
   ctx.fill();
+
+  if (camicia) disegnaCamicia(ctx, spalla, anca, colore, luce, fase, corsa, inclinazione);
 
   // la banda rifrangente sulla schiena, per chi la divisa ce l'ha
   if (banda) {
@@ -235,16 +251,21 @@ function gambaInVolo(ctx, segno, p, anca) {
   ctx.stroke();
 }
 
-function braccio(ctx, segno, p, spalla, anca, colore, coltello) {
+function braccio(ctx, segno, p, spalla, anca, colore, coltello, apertura = 0) {
   const indietro = Math.max(0, p);
   const avanti = Math.max(0, -p);
   // Il braccio che va indietro esce bene di lato: e' l'unico dei due che si
   // vede, perche' l'altro finisce dietro il busto, ed e' quindi lui a dover
   // raccontare la bracciata.
-  const manoX = segno * (0.3 + indietro * 0.16 - avanti * 0.08);
-  const manoY = anca + 0.14 + indietro * 0.2 - avanti * 0.08;
-  const gomitoX = segno * (0.32 + indietro * 0.08);
-  const gomitoY = (spalla + manoY) / 2 + 0.04;
+  //
+  // `apertura` lo stacca dal corpo e lo alza: e' il braccio che si allarga per
+  // bilanciare uno scarto di lato, e va **oltre** la bracciata normale, non al
+  // suo posto — se sostituisse il passo, il cambio di corsia sembrerebbe una
+  // posa e non un movimento.
+  const manoX = segno * (0.3 + indietro * 0.16 - avanti * 0.08 + apertura * 0.42);
+  const manoY = anca + 0.14 + indietro * 0.2 - avanti * 0.08 + apertura * 0.62;
+  const gomitoX = segno * (0.32 + indietro * 0.08 + apertura * 0.24);
+  const gomitoY = (spalla + manoY) / 2 + 0.04 + apertura * 0.12;
 
   ctx.strokeStyle = colore;
   ctx.beginPath();
@@ -272,6 +293,117 @@ function braccio(ctx, segno, p, spalla, anca, colore, coltello) {
  *  Schiacciandola verrebbe una testa ovale e le braccia spalancate, e da
  *  dietro non si capirebbe cosa sta succedendo. Alta in tutto 0,8 m, come dice
  *  ALTEZZA_OMINO_ABBASSATO. */
+/** La camicia di lino.
+ *
+ *  Il problema di un omino tutto bianco e' che non ha niente da guardare: e'
+ *  una silhouette, e una silhouette non ha carattere. La camicia gli da' due
+ *  cose che prima non aveva — una **linea di orlo** che taglia il busto e
+ *  quindi una lettura di dove finisce il torso, e una falda che si muove per
+ *  conto suo.
+ *
+ *  Il lino svolazza in ritardo sul passo, non a tempo: e' la stoffa che insegue
+ *  il corpo, e se andasse a tempo sembrerebbe attaccata. Da qui lo sfasamento
+ *  di mezzo passo sul seno che muove l'orlo.
+ */
+function disegnaCamicia(ctx, spalla, anca, colore, luce, fase, corsa, inclinazione) {
+  const sventola = corsa ? Math.sin(fase - 0.9) : 0;
+  const orlo = anca + 0.1;
+
+  // il corpo della camicia, appena piu' caldo del bianco del corpo
+  ctx.fillStyle = luce;
+  ctx.beginPath();
+  ctx.moveTo(-0.26, spalla - 0.02);
+  ctx.lineTo(0.26, spalla - 0.02);
+  ctx.lineTo(0.27 + sventola * 0.03, orlo + 0.05);
+  // l'orlo: una falda che si alza da una parte e si abbassa dall'altra
+  ctx.quadraticCurveTo(
+    0.1,
+    orlo - 0.06 + sventola * 0.09,
+    0,
+    orlo - 0.02 - sventola * 0.05,
+  );
+  ctx.quadraticCurveTo(
+    -0.1,
+    orlo + 0.02 - sventola * 0.09,
+    -0.27 + sventola * 0.03,
+    orlo + 0.05,
+  );
+  ctx.closePath();
+  ctx.fill();
+
+  // La falda che si stacca dal corpo dalla parte opposta allo scarto: cambiando
+  // corsia la stoffa resta indietro, ed e' il dettaglio che fa sentire lo
+  // spostamento anche quando l'omino e' fermo in mezzo al fotogramma.
+  const coda = sventola * 0.16 - inclinazione * 0.3;
+  if (Math.abs(coda) > 0.03) {
+    ctx.fillStyle = luce;
+    ctx.beginPath();
+    ctx.moveTo(Math.sign(coda) * 0.24, orlo + 0.04);
+    ctx.quadraticCurveTo(
+      Math.sign(coda) * 0.3 + coda,
+      orlo - 0.02,
+      Math.sign(coda) * 0.22 + coda,
+      orlo - 0.16,
+    );
+    ctx.lineTo(Math.sign(coda) * 0.2, orlo - 0.02);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // la piega centrale e il colletto: due righe, e la camicia si legge
+  ctx.strokeStyle = colore;
+  ctx.lineWidth = 0.022;
+  ctx.beginPath();
+  ctx.moveTo(0.015, spalla - 0.04);
+  ctx.lineTo(0.015 - sventola * 0.02, orlo);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-0.16, spalla + 0.02);
+  ctx.lineTo(0.16, spalla + 0.02);
+  ctx.stroke();
+}
+
+/** Raggomitolato: la posa della capriola. Non e' l'omino accosciato girato —
+ *  e' una palla, con le ginocchia al petto e le braccia strette attorno, e
+ *  serve perche' ruotando di 360 gradi qualunque cosa con le gambe distese
+ *  sembra un incidente invece di una capriola. */
+function disegnaRaggomitolato(ctx, colore, luce, camicia) {
+  ctx.save();
+  ctx.translate(0, 0.42);
+
+  ctx.fillStyle = colore;
+  ctx.beginPath();
+  ctx.arc(0, 0, 0.42, 0, Math.PI * 2);
+  ctx.fill();
+
+  // la schiena piu' chiara, che gira con lui e fa vedere che sta ruotando
+  ctx.fillStyle = luce;
+  ctx.beginPath();
+  ctx.arc(-0.1, 0.12, 0.26, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (camicia) {
+    ctx.strokeStyle = luce;
+    ctx.lineWidth = 0.05;
+    ctx.beginPath();
+    ctx.arc(0, 0, 0.3, 0.4, 2.6);
+    ctx.stroke();
+  }
+
+  // le gambe raccolte
+  ctx.strokeStyle = colore;
+  ctx.lineCap = 'round';
+  ctx.lineWidth = 0.16;
+  for (const segno of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(segno * 0.14, -0.1);
+    ctx.quadraticCurveTo(segno * 0.42, -0.02, segno * 0.3, 0.24);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
 function disegnaAccosciato(ctx, colore, luce, cappello) {
   ctx.strokeStyle = colore;
   ctx.lineCap = 'round';

@@ -17,7 +17,7 @@ import {
   ALTEZZA_OMINO,
   ALTEZZA_OMINO_ABBASSATO,
 } from '../src/costanti.js';
-import { ALTEZZA_PONTICELLO } from '../src/ostacoli.js';
+import { ALTEZZA_PORTALE } from '../src/ostacoli.js';
 
 /** Fa passare `secondi` a passi da un sessantesimo, come nel gioco vero. */
 function passa(corridore, secondi) {
@@ -94,15 +94,15 @@ test('in discesa si torna a terra prima di toccare, e si cade nella buca', () =>
   assert(aTerra(corridore), 'atterrando dentro una buca ci si finisce dentro');
 });
 
-test('abbassandosi la testa passa sotto il ponticello', () => {
+test('abbassandosi la testa passa sotto il portale', () => {
   const corridore = creaCorridore();
   assertQuasi(altezzaTesta(corridore), ALTEZZA_OMINO, 1e-9);
-  assert(altezzaTesta(corridore) > ALTEZZA_PONTICELLO, 'in piedi il lampione lo prende');
+  assert(altezzaTesta(corridore) > ALTEZZA_PORTALE, 'in piedi la traversa lo prende');
 
   scivola(corridore);
   assert(abbassato(corridore));
   assertQuasi(altezzaTesta(corridore), ALTEZZA_OMINO_ABBASSATO, 1e-9);
-  assert(altezzaTesta(corridore) < ALTEZZA_PONTICELLO, 'abbassato ci passa sotto');
+  assert(altezzaTesta(corridore) < ALTEZZA_PORTALE, 'abbassato ci passa sotto');
 });
 
 test('la scivolata finisce da sola', () => {

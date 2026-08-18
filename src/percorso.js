@@ -21,7 +21,7 @@ import {
   creaBuca,
   creaAiuola,
   creaMonopattino,
-  creaPonticello,
+  creaPortale,
   creaArco,
   creaTram,
   scia,
@@ -183,9 +183,9 @@ export function creaOstacoli(z, rng, difficolta) {
 
 
 
-  const quante = quanteCorsie(rng, difficolta, 0.38, 0.22);
-  const inizio = Math.floor(rng() * (CORSIE - quante + 1));
-  return [creaPonticello(z, inizio, quante)];
+  // Il portale prende sempre tutta la strada: non ha una larghezza da tirare a
+  // sorte, ed e' proprio quello che lo rende leggibile.
+  return [creaPortale(z)];
 }
 
 /** Quanta parte degli ostacoli sono tram. Una manopola sola: alzarla riempie
@@ -309,7 +309,7 @@ function filaDiMonete(ostacolo, gruppo, rng) {
   const inizio = ostacolo.z + ostacolo.profondita / 2 + 5;
   const monete = [];
   for (let i = 0; i < quante; i += 1) {
-    monete.push(creaRaccolta(MONETA, inizio + i * 2.2, corsia, 0.85));
+    monete.push(creaRaccolta(MONETA, inizio + i * 3.3, corsia, 0.85));
   }
   return monete;
 }
@@ -317,7 +317,7 @@ function filaDiMonete(ostacolo, gruppo, rng) {
 /** Sette monete che salgono e ridiscendono sopra la buca. */
 function arcoDiMonete(buca) {
   const corsia = buca.corsiaInizio + Math.floor(buca.quanteCorsie / 2);
-  const meta = buca.profondita / 2 + 2.5;
+  const meta = (buca.profondita / 2 + 2.5) * 1.5;
   const quante = 7;
   const monete = [];
   for (let i = 0; i < quante; i += 1) {

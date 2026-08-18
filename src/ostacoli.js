@@ -5,7 +5,7 @@
 //   buca         -> si salta
 //   aiuola       -> si salta (e' un'aiuola del sindaco, con l'erba alta)
 //   monopattino  -> si cambia corsia (e' alto: saltargli sopra non funziona)
-//   ponticello   -> ci si abbassa e si passa sotto
+//   portale      -> ci si abbassa e si passa sotto (Area C)
 //   arco         -> si passa in mezzo, e in mezzo si sta solo dalla corsia
 //                   centrale: i due piloni chiudono le altre due
 //   tram         -> si cambia corsia, e in fretta: e' lungo diciannove metri e
@@ -13,8 +13,7 @@
 //                   il lato e attraversano la carreggiata
 //
 // Quel che non copre tutte e tre le corsie si puo' sempre anche scansare di
-// lato: e' vero per il monopattino, per un'aiuola stretta, per un ponticello
-// corto. Il gesto proprio dell'ostacolo e' quello che funziona **sempre**,
+// lato: e' vero per il monopattino e per un'aiuola stretta. Il gesto proprio dell'ostacolo e' quello che funziona **sempre**,
 // anche quando l'ostacolo prende tutta la strada.
 
 import { CORSIE, SEMI_PROFONDITA_OMINO, QUOTA_A_TERRA, ALTEZZA_OMINO } from './costanti.js';
@@ -23,13 +22,13 @@ import { aTerra, altezzaTesta, corsieOccupate, SEMI_LARGHEZZA_OMINO } from './co
 export const BUCA = 'buca';
 export const AIUOLA = 'aiuola';
 export const MONOPATTINO = 'monopattino';
-export const PONTICELLO = 'ponticello';
+export const PORTALE = 'portale';
 export const ARCO = 'arco';
 export const TRAM = 'tram';
 
-/** Quanto sta in alto l'intradosso del ponticello, in metri: sopra l'omino
+/** Quanto sta in alto la traversa del portale, in metri: sopra l'omino
  *  abbassato (0,75 m), sotto l'omino in piedi (1,75 m). */
-export const ALTEZZA_PONTICELLO = 1.05;
+export const ALTEZZA_PORTALE = 1.05;
 
 /** Quanto e' profondo un monopattino col suo maranza sopra, in metri. */
 const PROFONDITA_MONOPATTINO = 1.4;
@@ -45,9 +44,9 @@ export const VELOCITA_MONOPATTINO = 4;
  *  reazione. */
 export const DISTANZA_AVVICINAMENTO = 50;
 
-/** L'impalcato del ponticello e' stretto: si passa sotto in un attimo, ma per
- *  quell'attimo bisogna essere gia' abbassati. */
-const PROFONDITA_PONTICELLO = 1.1;
+/** La traversa e' sottile: si passa sotto in un attimo, ma per quell'attimo
+ *  bisogna essere gia' abbassati. */
+const PROFONDITA_PORTALE = 1.1;
 
 /** Un'aiuola e' un cassone: ha il suo spessore da scavalcare. */
 const PROFONDITA_AIUOLA = 1.8;
@@ -202,13 +201,22 @@ export function spintaPerAvvicinamento(velocitaCorsa, velocitaOstacolo = VELOCIT
   return (DISTANZA_AVVICINAMENTO * velocitaOstacolo) / (velocitaCorsa + velocitaOstacolo);
 }
 
-export function creaPonticello(z, corsiaInizio, quanteCorsie) {
+/** Il portale dell'Area C: i due pali stanno sui marciapiedi e la traversa
+ *  attraversa **tutta** la carreggiata.
+ *
+ *  Largo tutta la strada non e' un caso, e' la ragione per cui ha sostituito il
+ *  ponticello. Una cosa sotto cui si passa e' un elemento orizzontale, e un
+ *  elemento orizzontale che copre solo una corsia deve appoggiarsi da qualche
+ *  parte: quelle spalle finivano nelle corsie accanto, che erano libere ma non
+ *  sembravano. Un portale i suoi piedi li ha fuori dall'asfalto, e cosi' non
+ *  c'e' piu' niente da interpretare — si passa abbassandosi, sempre. */
+export function creaPortale(z) {
   return {
-    tipo: PONTICELLO,
+    tipo: PORTALE,
     z,
-    profondita: PROFONDITA_PONTICELLO,
-    corsiaInizio,
-    quanteCorsie,
+    profondita: PROFONDITA_PORTALE,
+    corsiaInizio: 0,
+    quanteCorsie: CORSIE,
     colpito: false,
     // da che parte guardano le statuine sui pilastrini
     versoDestra: Math.floor(z) % 2 === 0,
@@ -283,7 +291,7 @@ export function sovrapposto(ostacolo, zRelativo) {
  *
  *  Il margine si misura nel modo proprio di ogni ostacolo, perche' ogni
  *  ostacolo si passa con un gesto suo: una buca la si scavalca in **altezza**,
- *  un ponticello si passa in altezza al contrario, un monopattino si scansa di
+ *  un portale si passa in altezza al contrario, un monopattino si scansa di
  *  **lato**. Misurarli tutti allo stesso modo darebbe un numero che non vuol
  *  dire niente per almeno due di loro. */
 export function margineScampato(ostacolo, corridore) {
@@ -298,8 +306,8 @@ export function margineScampato(ostacolo, corridore) {
       // quanto si e' stati sopra la soglia oltre cui la buca non prende piu'
       return Math.min(1, (corridore.y - QUOTA_A_TERRA) / 0.9);
     }
-    if (ostacolo.tipo === PONTICELLO) {
-      const spazio = ALTEZZA_PONTICELLO - altezzaTesta(corridore);
+    if (ostacolo.tipo === PORTALE) {
+      const spazio = ALTEZZA_PORTALE - altezzaTesta(corridore);
       return spazio <= 0 ? 1 : Math.min(1, spazio / 0.35);
     }
     // monopattino, tram e piloni: dentro la corsia non si scampa
@@ -327,7 +335,7 @@ export function prendeIlCorridore(ostacolo, corridore, zRelativo) {
   if (!dentro) return false;
 
   if (ostacolo.tipo === BUCA || ostacolo.tipo === AIUOLA) return aTerra(corridore);
-  if (ostacolo.tipo === PONTICELLO) return altezzaTesta(corridore) > ALTEZZA_PONTICELLO;
+  if (ostacolo.tipo === PORTALE) return altezzaTesta(corridore) > ALTEZZA_PORTALE;
   // monopattino e piloni dell'arco: se sei nella loro corsia ti prendono, punto
   return true;
 }

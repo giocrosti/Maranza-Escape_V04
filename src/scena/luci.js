@@ -19,7 +19,7 @@ import { proietta, xDiCorsia } from '../proiezione.js';
 import { zRelativo, BORDO_MARCIAPIEDE } from '../citta.js';
 import { DISTANZA_VISIBILE } from '../costanti.js';
 import { MONETA } from '../percorso.js';
-import { MONOPATTINO } from '../ostacoli.js';
+import { MONOPATTINO, PORTALE, ALTEZZA_PORTALE } from '../ostacoli.js';
 import { madonninaAttiva, scattoAttivo, fuoriDallaCorsa } from '../mondo.js';
 import { LUCI_MASSIME } from '../grafica/filtri/luce.js';
 
@@ -84,6 +84,18 @@ export function raccogliLuci(mondo, citta) {
       raggio: 2.6,
       intensita: 0.8,
       colore: COLORI_LUCE.faro,
+    });
+  }
+
+  // --- il varco attivo dell'Area C ---
+  for (const ostacolo of mondo.percorso.ostacoli) {
+    if (ostacolo.tipo !== PORTALE) continue;
+    const z = ostacolo.z - mondo.distanza;
+    if (z > 40 || z < 0) continue;
+    aggiungi(luci, proietta(vista, -1.9, ALTEZZA_PORTALE + 1.5, z), {
+      raggio: 1.6,
+      intensita: 0.7,
+      colore: [1.0, 0.28, 0.22],
     });
   }
 

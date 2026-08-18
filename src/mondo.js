@@ -561,6 +561,7 @@ function prendiRaccolta(mondo, raccolta) {
 
   if (raccolta.tipo === MONETA) {
     mondo.monete += 1;
+    segnala(mondo, 'moneta', { corsia: mondo.corridore.posizione, forza: 1 });
     return;
   }
   if (raccolta.tipo === SCUDO) {
